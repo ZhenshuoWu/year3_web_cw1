@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from typing import Optional
 from app.database import get_db
 from app.models import Driver
@@ -14,7 +15,7 @@ def get_drivers(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     nationality: Optional[str] = Query(None, description="Filter by nationality"),
-    search: Optional[str] = Query(None, description="Search by name"),
+    search: Optional[str] = Query(None, description="Search by name, surname, or driver_ref"),
     db: Session = Depends(get_db)
 ):
     """Get a paginated list of drivers with optional filters."""
@@ -23,13 +24,19 @@ def get_drivers(
     if nationality:
         query = query.filter(Driver.nationality == nationality)
     if search:
+        search_pattern = f"%{search}%"
+        # 安全处理可能为NULL的code字段
         query = query.filter(
-            (Driver.forename.ilike(f"%{search}%")) |
-            (Driver.surname.ilike(f"%{search}%"))
+            (Driver.forename.ilike(search_pattern)) |
+            (Driver.surname.ilike(search_pattern)) |
+            (Driver.driver_ref.ilike(search_pattern)) |
+            ((Driver.code.isnot(None)) & (Driver.code.ilike(search_pattern)))
         )
 
+    # 按driver_id降序排序，让较新的车手（通常driver_id更大）排在前面
+    # 这样搜索"verstappen"时，Max Verstappen会排在Jos Verstappen前面
     offset = (page - 1) * per_page
-    drivers = query.order_by(Driver.driver_id).offset(offset).limit(per_page).all()
+    drivers = query.order_by(Driver.driver_id.desc()).offset(offset).limit(per_page).all()
     return drivers
 
 
