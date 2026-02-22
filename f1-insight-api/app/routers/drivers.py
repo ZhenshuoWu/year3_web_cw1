@@ -5,6 +5,8 @@ from app.database import get_db
 from app.models import Driver
 from app.schemas import DriverCreate, DriverUpdate, DriverResponse
 from app.utils.auth import get_current_user, require_admin
+from sqlalchemy import func
+from sqlalchemy import Integer
 
 router = APIRouter(prefix="/api/v1/drivers", tags=["Drivers"])
 
@@ -15,16 +17,18 @@ def get_drivers(
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     nationality: Optional[str] = Query(None, description="Filter by nationality"),
     search: Optional[str] = Query(None, description="Search by name, surname, or driver_ref"),
+    sort_by: Optional[str] = Query("newest", description="Sort by: 'newest', 'oldest', or 'popularity' (by total points)"),
     db: Session = Depends(get_db)
 ):
     """Get a paginated list of drivers with optional filters."""
+    from app.models import Result
+
     query = db.query(Driver)
 
     if nationality:
         query = query.filter(Driver.nationality == nationality)
     if search:
         search_pattern = f"%{search}%"
-        # 安全处理可能为NULL的code字段
         query = query.filter(
             (Driver.forename.ilike(search_pattern)) |
             (Driver.surname.ilike(search_pattern)) |
@@ -32,10 +36,21 @@ def get_drivers(
             ((Driver.code.isnot(None)) & (Driver.code.ilike(search_pattern)))
         )
 
-    # 按driver_id降序排序，让较新的车手（通常driver_id更大）排在前面
-    # 这样搜索"verstappen"时，Max Verstappen会排在Jos Verstappen前面
+    if sort_by == "popularity":
+        # 按总积分排序，积分高的车手更"出名"
+        query = (
+            query
+            .outerjoin(Result, Driver.driver_id == Result.driver_id)
+            .group_by(Driver.driver_id)
+            .order_by(func.coalesce(func.sum(Result.points), 0).desc())
+        )
+    elif sort_by == "oldest":
+        query = query.order_by(Driver.driver_id.asc())
+    else:  # newest (default)
+        query = query.order_by(Driver.driver_id.desc())
+
     offset = (page - 1) * per_page
-    drivers = query.order_by(Driver.driver_id.desc()).offset(offset).limit(per_page).all()
+    drivers = query.offset(offset).limit(per_page).all()
     return drivers
 
 
