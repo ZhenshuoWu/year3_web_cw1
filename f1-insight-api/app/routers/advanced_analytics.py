@@ -73,7 +73,7 @@ def get_win_probability(
 
     # Recent form score (weighted: 30%)
     # Lower avg finish = better, scale to 0-100
-    recent_form_score = max(0, min(100, (20 - recent_avg_finish) / 20 * 100)) if recent_results else 0
+    recent_form_score = max(0, min(100, (20 - recent_avg_finish) / 19 * 100)) if recent_results else 0
 
     # --- Factor 3: Grid performance (qualifying to race conversion) ---
     grid_results = (
