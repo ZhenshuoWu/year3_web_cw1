@@ -1,6 +1,17 @@
 from pydantic import BaseModel, EmailStr, Field
 from datetime import date
 from typing import Optional
+from app.schemas.analytics import (
+    CircuitHistoryResponse,
+    DriverCareerStatsResponse,
+    DriverCompareResponse,
+    DriverSeasonProgressionResponse,
+    LeaderboardResponse,
+    PerformanceSummaryResponse,
+    PitStopAnalysisResponse,
+    TeammateBattleResponse,
+    WinProbabilityResponse,
+)
 
 
 # ==================== Auth Schemas ====================
