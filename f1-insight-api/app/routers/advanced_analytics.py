@@ -9,6 +9,7 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["Advanced Analytics"])
 
 
 # ==================== 1. WIN PROBABILITY ====================
+#check if driver and circuit exist, then calculate win probability based on historical performance, recent form, grid conversion, and career baseline. Return a detailed breakdown of factors contributing to the probability score.
 
 @router.get("/win-probability")
 def get_win_probability(
