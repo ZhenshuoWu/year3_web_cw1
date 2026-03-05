@@ -5,6 +5,8 @@ from app.database import get_db
 from app.models import Driver
 from app.schemas import DriverCreate, DriverUpdate, DriverResponse
 from app.utils.auth import get_current_user, require_admin
+from sqlalchemy import func
+from sqlalchemy import Integer
 
 router = APIRouter(prefix="/api/v1/drivers", tags=["Drivers"])
 
@@ -14,22 +16,71 @@ def get_drivers(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
     nationality: Optional[str] = Query(None, description="Filter by nationality"),
-    search: Optional[str] = Query(None, description="Search by name"),
+    search: Optional[str] = Query(None, description="Search by name, surname, or driver_ref"),
+    sort_by: Optional[str] = Query(
+        "newest",
+        description="Sort by: 'newest', 'oldest', 'popularity' (all-time points), 'recent' (latest season points), 'wins' (total wins)"
+    ),
     db: Session = Depends(get_db)
 ):
-    """Get a paginated list of drivers with optional filters."""
+    """Get a paginated list of drivers with optional filters and smart sorting."""
+    from sqlalchemy import func, desc
+    from app.models import Result, Race
+
     query = db.query(Driver)
 
     if nationality:
         query = query.filter(Driver.nationality == nationality)
     if search:
+        search_pattern = f"%{search}%"
         query = query.filter(
-            (Driver.forename.ilike(f"%{search}%")) |
-            (Driver.surname.ilike(f"%{search}%"))
+            (Driver.forename.ilike(search_pattern)) |
+            (Driver.surname.ilike(search_pattern)) |
+            (Driver.driver_ref.ilike(search_pattern)) |
+            ((Driver.code.isnot(None)) & (Driver.code.ilike(search_pattern)))
         )
 
+    if sort_by == "popularity":
+        # All-time total points
+        query = (
+            query
+            .outerjoin(Result, Driver.driver_id == Result.driver_id)
+            .group_by(Driver.driver_id)
+            .order_by(func.coalesce(func.sum(Result.points), 0).desc())
+        )
+
+    elif sort_by == "recent":
+        # Latest season points — find the most recent season, rank by points in that season
+        latest_season = db.query(func.max(Race.year)).scalar()
+        query = (
+            query
+            .outerjoin(Result, Driver.driver_id == Result.driver_id)
+            .outerjoin(Race, Result.race_id == Race.race_id)
+            .filter((Race.year == latest_season) | (Race.year.is_(None)))
+            .group_by(Driver.driver_id)
+            .order_by(func.coalesce(func.sum(Result.points), 0).desc())
+        )
+
+    elif sort_by == "wins":
+        # Total career wins
+        win_count = func.sum(
+            func.cast(Result.position == 1, Integer)
+        )
+        query = (
+            query
+            .outerjoin(Result, Driver.driver_id == Result.driver_id)
+            .group_by(Driver.driver_id)
+            .order_by(func.coalesce(win_count, 0).desc())
+        )
+
+    elif sort_by == "oldest":
+        query = query.order_by(Driver.driver_id.asc())
+
+    else:  # newest (default)
+        query = query.order_by(Driver.driver_id.desc())
+
     offset = (page - 1) * per_page
-    drivers = query.order_by(Driver.driver_id).offset(offset).limit(per_page).all()
+    drivers = query.offset(offset).limit(per_page).all()
     return drivers
 
 

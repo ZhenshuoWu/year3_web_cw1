@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import engine, Base
 from app.routers import auth, drivers, analytics
+from app.routers import auth, drivers, analytics, advanced_analytics
 
 settings = get_settings()
 
@@ -40,6 +41,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(drivers.router)
 app.include_router(analytics.router)
+app.include_router(advanced_analytics.router)
 
 
 @app.get("/", tags=["Root"])
