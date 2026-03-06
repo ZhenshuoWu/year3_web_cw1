@@ -85,38 +85,32 @@ def clean_dataframe(df):
     return df
 
 
-def import_table(table_name, csv_path, column_mapping=None):
-    """Import a single CSV file into the database."""
-    try:
-        print(f"  Loading {csv_path}...")
-        df = pd.read_csv(csv_path)
-        df = clean_dataframe(df)
+def import_table(table_name, csv_path, conn, column_mapping=None):
+    """Import a single CSV file into the database using an existing connection."""
+    print(f"  Loading {csv_path}...")
+    df = pd.read_csv(csv_path)
+    df = clean_dataframe(df)
 
-        # Rename columns if mapping exists
-        if column_mapping:
-            df = df.rename(columns=column_mapping)
+    # Rename columns if mapping exists
+    if column_mapping:
+        df = df.rename(columns=column_mapping)
 
-        # Convert column names from camelCase to snake_case for any remaining
-        df.columns = [
-            ''.join(['_' + c.lower() if c.isupper() else c for c in col]).lstrip('_')
-            for col in df.columns
-        ]
+    # Convert column names from camelCase to snake_case for any remaining
+    df.columns = [
+        ''.join(['_' + c.lower() if c.isupper() else c for c in col]).lstrip('_')
+        for col in df.columns
+    ]
 
-        print(f"  Importing {len(df)} rows into '{table_name}'...")
-        df.to_sql(
-            table_name,
-            con=engine,
-            if_exists="append",
-            index=False,
-            chunksize=5000,
-            method="multi"
-        )
-        print(f"  ✓ {table_name}: {len(df)} rows imported")
-
-    except FileNotFoundError:
-        print(f"  ✗ File not found: {csv_path} - skipping")
-    except Exception as e:
-        print(f"  ✗ Error importing {table_name}: {str(e)}")
+    print(f"  Importing {len(df)} rows into '{table_name}'...")
+    df.to_sql(
+        table_name,
+        con=conn,
+        if_exists="append",
+        index=False,
+        chunksize=5000,
+        method="multi"
+    )
+    print(f"  ✓ {table_name}: {len(df)} rows imported")
 
 
 def main():
@@ -124,26 +118,40 @@ def main():
     print("F1 Insight API - Data Import")
     print("=" * 60)
 
-    # Step 1: Drop and recreate all tables
+    # Step 1: Drop and recreate F1 data tables only (preserves users table)
     print("\n[1/3] Recreating database tables...")
-    Base.metadata.drop_all(bind=engine)
+    f1_table_names = [
+        "lap_times", "pit_stops", "qualifying", "results",
+        "races", "status", "constructors", "drivers", "circuits", "seasons"
+    ]
+    tables_to_drop = [
+        Base.metadata.tables[t] for t in f1_table_names if t in Base.metadata.tables
+    ]
+    Base.metadata.drop_all(bind=engine, tables=tables_to_drop)
     Base.metadata.create_all(bind=engine)
     print("  ✓ Tables created")
 
-    # Step 2: Import data in order (respecting foreign keys)
+    # Step 2: Import data in order (respecting foreign keys), wrapped in a single transaction
     print("\n[2/3] Importing CSV data...")
     import_order = [
         "seasons", "circuits", "drivers", "constructors", "status",
         "races", "results", "qualifying", "pit_stops", "lap_times"
     ]
 
-    for table in import_order:
-        if table in CSV_FILES:
-            import_table(
-                table,
-                CSV_FILES[table],
-                COLUMN_MAPPINGS.get(table)
-            )
+    try:
+        with engine.begin() as conn:
+            for table in import_order:
+                if table in CSV_FILES:
+                    import_table(
+                        table,
+                        CSV_FILES[table],
+                        conn,
+                        COLUMN_MAPPINGS.get(table)
+                    )
+    except Exception as e:
+        print(f"\n  ✗ Import failed: {e}")
+        print("  All changes have been rolled back.")
+        raise SystemExit(1)
 
     # Step 3: Verify
     print("\n[3/3] Verifying import...")
