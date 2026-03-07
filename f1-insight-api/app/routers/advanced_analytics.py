@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func, case, desc, and_
+from sqlalchemy import func, case, desc, and_, Float
 from typing import Optional
 from app.database import get_db
 from app.models import Driver, Result, Race, Constructor, PitStop, Qualifying, Status, Circuit
@@ -222,29 +222,45 @@ def get_performance_summary(
     consistency_score = (finish_rate * 0.4 + points_finish_rate * 0.6)
 
     # --- Dimension 4: Overtaking Ability (out of 100) ---
-    # Measures positions gained from grid to finish
-    grid_vs_finish = [
-        (r.grid - r.position) for r, _ in results
-        if r.grid and r.position and r.grid > 0
-    ]
-    avg_positions_gained = sum(grid_vs_finish) / max(len(grid_vs_finish), 1) if grid_vs_finish else 0
+    # Score each race individually, then average.
+    # Drivers starting at the front have no room to overtake, so holding position
+    # from a front-row start is rewarded equally to gaining places from further back.
+    race_overtaking_scores = []
+    grid_vs_finish = []
+    for r, _ in results:
+        if not r.grid or not r.position or r.grid <= 0:
+            continue
+        positions_gained = r.grid - r.position
+        grid_vs_finish.append(positions_gained)
+        if r.grid <= 3 and r.position <= 3:
+            # Front-row start, held podium position: full marks
+            race_overtaking_scores.append(100)
+        else:
+            # Scale: gaining 5+ positions = 100, losing 5+ = 0
+            race_overtaking_scores.append(max(0, min(100, (positions_gained + 5) / 10 * 100)))
 
-    # Scale: gaining 5+ positions = 100, losing 5+ = 0
-    overtaking_score = max(0, min(100, (avg_positions_gained + 5) / 10 * 100))
+    avg_positions_gained = sum(grid_vs_finish) / max(len(grid_vs_finish), 1) if grid_vs_finish else 0
+    overtaking_score = sum(race_overtaking_scores) / max(len(race_overtaking_scores), 1) if race_overtaking_scores else 50
 
     # --- Dimension 5: Pit Stop Efficiency (out of 100) ---
-    pit_query = db.query(PitStop).join(Race, PitStop.race_id == Race.race_id).filter(PitStop.driver_id == driver_id)
+    # Filter out stops >45s (45000ms) at query level to exclude red flag / penalty outliers
+    pit_query = (
+        db.query(PitStop)
+        .join(Race, PitStop.race_id == Race.race_id)
+        .filter(PitStop.driver_id == driver_id, PitStop.milliseconds < 45000)
+    )
     if season:
         pit_query = pit_query.filter(Race.year == season)
     pit_stops = pit_query.all()
 
     if pit_stops:
-        pit_times = [p.milliseconds for p in pit_stops if p.milliseconds and p.milliseconds > 0]
-        avg_pit_time = sum(pit_times) / max(len(pit_times), 1) if pit_times else None
+        pit_times = sorted(p.milliseconds for p in pit_stops if p.milliseconds and p.milliseconds > 0)
+        n = len(pit_times)
+        median_pit_time = (pit_times[n // 2] if n % 2 == 1 else (pit_times[n // 2 - 1] + pit_times[n // 2]) / 2) if pit_times else None
         # Scale: 20s (20000ms) = 100, 40s (40000ms) = 0
-        pit_score = max(0, min(100, (40000 - (avg_pit_time or 30000)) / 20000 * 100))
+        pit_score = max(0, min(100, (40000 - (median_pit_time or 30000)) / 20000 * 100))
     else:
-        avg_pit_time = None
+        median_pit_time = None
         pit_score = 50  # Default if no pit data
 
     # --- Overall Rating ---
@@ -302,7 +318,7 @@ def get_performance_summary(
                 "score": round(pit_score, 1),
                 "weight": "10%",
                 "detail": {
-                    "avg_pit_time_ms": round(avg_pit_time) if avg_pit_time else None,
+                    "median_pit_time_ms": round(median_pit_time) if median_pit_time else None,
                     "total_pit_stops": len(pit_stops)
                 }
             }
@@ -490,7 +506,7 @@ def get_leaderboard(
         min_races = 5 if season else 20
         query = query.having(func.count(Result.result_id) >= min_races)
         query = query.order_by(
-            (func.sum(case((Result.position == 1, 1), else_=0)).cast(db.bind.dialect.name == 'postgresql' and Float or Float) /
+            (func.sum(case((Result.position == 1, 1), else_=0)).cast(Float) /
              func.count(Result.result_id)).desc()
         )
     else:  # points (default)
