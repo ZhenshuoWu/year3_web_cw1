@@ -1,0 +1,191 @@
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
+from typing import Optional
+from app.database import get_db
+from app.models import Circuit, Race, Result, Driver
+from app.schemas import CircuitCreate, CircuitUpdate, CircuitResponse
+from app.utils.auth import get_current_user, require_admin
+
+router = APIRouter(prefix="/api/v1/circuits", tags=["Circuits"])
+
+
+@router.get("/", response_model=list[CircuitResponse])
+def get_circuits(
+    page: int = Query(1, ge=1, description="Page number"),
+    per_page: int = Query(20, ge=1, le=100, description="Items per page"),
+    country: Optional[str] = Query(None, description="Filter by country"),
+    search: Optional[str] = Query(None, description="Search by circuit name or location"),
+    sort_by: Optional[str] = Query(
+        "name",
+        description="Sort by: 'name' (alphabetical), 'country', 'most_races' (total races held), 'recent' (most recently used)"
+    ),
+    db: Session = Depends(get_db)
+):
+    """Get a paginated list of circuits with optional filters and sorting."""
+    query = db.query(Circuit)
+
+    # --- Filters ---
+    if country:
+        query = query.filter(Circuit.country.ilike(f"%{country}%"))
+    if search:
+        search_pattern = f"%{search}%"
+        query = query.filter(
+            (Circuit.name.ilike(search_pattern)) |
+            (Circuit.location.ilike(search_pattern)) |
+            (Circuit.circuit_ref.ilike(search_pattern))
+        )
+
+    # --- Sorting ---
+    if sort_by == "country":
+        query = query.order_by(Circuit.country.asc(), Circuit.name.asc())
+
+    elif sort_by == "most_races":
+        query = (
+            query
+            .outerjoin(Race, Circuit.circuit_id == Race.circuit_id)
+            .group_by(Circuit.circuit_id)
+            .order_by(func.count(Race.race_id).desc())
+        )
+
+    elif sort_by == "recent":
+        query = (
+            query
+            .outerjoin(Race, Circuit.circuit_id == Race.circuit_id)
+            .group_by(Circuit.circuit_id)
+            .order_by(func.coalesce(func.max(Race.year), 0).desc())
+        )
+
+    else:  # name (default)
+        query = query.order_by(Circuit.name.asc())
+
+    # --- Pagination ---
+    offset = (page - 1) * per_page
+    circuits = query.offset(offset).limit(per_page).all()
+    return circuits
+
+
+@router.get("/{circuit_id}")
+def get_circuit(circuit_id: int, db: Session = Depends(get_db)):
+    """
+    Get a single circuit by ID with recent race history.
+
+    Returns circuit details plus the 5 most recent races held at this circuit,
+    including the winner of each race.
+    """
+    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id).first()
+    if not circuit:
+        raise HTTPException(status_code=404, detail="Circuit not found")
+
+    # Fetch 5 most recent races at this circuit, with winner info
+    recent_races_query = (
+        db.query(Race, Result, Driver)
+        .join(Result, Race.race_id == Result.race_id)
+        .join(Driver, Result.driver_id == Driver.driver_id)
+        .filter(Race.circuit_id == circuit_id, Result.position == 1)
+        .order_by(Race.year.desc())
+        .limit(5)
+        .all()
+    )
+
+    recent_races = [
+        {
+            "race_id": race.race_id,
+            "year": race.year,
+            "round": race.round,
+            "race_name": race.name,
+            "date": str(race.date) if race.date else None,
+            "winner": f"{driver.forename} {driver.surname}"
+        }
+        for race, result, driver in recent_races_query
+    ]
+
+    # Total races held
+    total_races = db.query(func.count(Race.race_id)).filter(
+        Race.circuit_id == circuit_id
+    ).scalar()
+
+    return {
+        "circuit_id": circuit.circuit_id,
+        "circuit_ref": circuit.circuit_ref,
+        "name": circuit.name,
+        "location": circuit.location,
+        "country": circuit.country,
+        "lat": circuit.lat,
+        "lng": circuit.lng,
+        "alt": circuit.alt,
+        "url": circuit.url,
+        "total_races_held": total_races,
+        "recent_races": recent_races
+    }
+
+
+@router.post("/", response_model=CircuitResponse, status_code=status.HTTP_201_CREATED)
+def create_circuit(
+    circuit_data: CircuitCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Create a new circuit (requires authentication)."""
+    # Check for duplicate circuit_ref
+    existing = db.query(Circuit).filter(Circuit.circuit_ref == circuit_data.circuit_ref).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Circuit with ref '{circuit_data.circuit_ref}' already exists"
+        )
+
+    circuit = Circuit(**circuit_data.model_dump())
+    db.add(circuit)
+    db.commit()
+    db.refresh(circuit)
+    return circuit
+
+
+@router.put("/{circuit_id}", response_model=CircuitResponse)
+def update_circuit(
+    circuit_id: int,
+    circuit_data: CircuitUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """Update a circuit (requires authentication)."""
+    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id).first()
+    if not circuit:
+        raise HTTPException(status_code=404, detail="Circuit not found")
+
+    update_data = circuit_data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    for field, value in update_data.items():
+        setattr(circuit, field, value)
+
+    db.commit()
+    db.refresh(circuit)
+    return circuit
+
+
+@router.delete("/{circuit_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_circuit(
+    circuit_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(require_admin)
+):
+    """Delete a circuit (requires admin privileges)."""
+    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id).first()
+    if not circuit:
+        raise HTTPException(status_code=404, detail="Circuit not found")
+
+    # Check if circuit has associated races
+    race_count = db.query(func.count(Race.race_id)).filter(
+        Race.circuit_id == circuit_id
+    ).scalar()
+    if race_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete circuit: {race_count} races are associated with it. Remove associated races first."
+        )
+
+    db.delete(circuit)
+    db.commit()
