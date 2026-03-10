@@ -106,6 +106,9 @@ class CircuitUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None
     country: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    alt: Optional[float] = None
     url: Optional[str] = None
 
 
@@ -114,6 +117,10 @@ class CircuitResponse(CircuitBase):
 
     class Config:
         from_attributes = True
+
+
+class CircuitListResponse(CircuitResponse):
+    total_races: int
 
 
 # ==================== Race Schemas ====================

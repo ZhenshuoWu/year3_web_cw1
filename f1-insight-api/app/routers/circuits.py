@@ -4,13 +4,13 @@ from sqlalchemy import func, desc
 from typing import Optional
 from app.database import get_db
 from app.models import Circuit, Race, Result, Driver
-from app.schemas import CircuitCreate, CircuitUpdate, CircuitResponse
+from app.schemas import CircuitCreate, CircuitUpdate, CircuitResponse, CircuitListResponse
 from app.utils.auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/api/v1/circuits", tags=["Circuits"])
 
 
-@router.get("/", response_model=list[CircuitResponse])
+@router.get("/", response_model=list[CircuitListResponse])
 def get_circuits(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -23,7 +23,24 @@ def get_circuits(
     db: Session = Depends(get_db)
 ):
     """Get a paginated list of circuits with optional filters and sorting."""
-    query = db.query(Circuit)
+    # Build a subquery with race stats (count + last year) per circuit
+    race_stats_subq = (
+        db.query(
+            Race.circuit_id,
+            func.count(Race.race_id).label("total_races"),
+            func.max(Race.year).label("last_year"),
+        )
+        .group_by(Race.circuit_id)
+        .subquery()
+    )
+
+    total_races_col = func.coalesce(race_stats_subq.c.total_races, 0)
+    last_year_col = func.coalesce(race_stats_subq.c.last_year, 0)
+
+    query = (
+        db.query(Circuit, total_races_col.label("total_races"))
+        .outerjoin(race_stats_subq, Circuit.circuit_id == race_stats_subq.c.circuit_id)
+    )
 
     # --- Filters ---
     if country:
@@ -39,30 +56,21 @@ def get_circuits(
     # --- Sorting ---
     if sort_by == "country":
         query = query.order_by(Circuit.country.asc(), Circuit.name.asc())
-
     elif sort_by == "most_races":
-        query = (
-            query
-            .outerjoin(Race, Circuit.circuit_id == Race.circuit_id)
-            .group_by(Circuit.circuit_id)
-            .order_by(func.count(Race.race_id).desc())
-        )
-
+        query = query.order_by(total_races_col.desc())
     elif sort_by == "recent":
-        query = (
-            query
-            .outerjoin(Race, Circuit.circuit_id == Race.circuit_id)
-            .group_by(Circuit.circuit_id)
-            .order_by(func.coalesce(func.max(Race.year), 0).desc())
-        )
-
+        query = query.order_by(last_year_col.desc())
     else:  # name (default)
         query = query.order_by(Circuit.name.asc())
 
     # --- Pagination ---
     offset = (page - 1) * per_page
-    circuits = query.offset(offset).limit(per_page).all()
-    return circuits
+    rows = query.offset(offset).limit(per_page).all()
+
+    return [
+        {**circuit.__dict__, "total_races": total_races}
+        for circuit, total_races in rows
+    ]
 
 
 @router.get("/{circuit_id}")
