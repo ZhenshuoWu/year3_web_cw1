@@ -55,10 +55,22 @@ There is no active service layer (`app/services/` is empty). All business logic 
 |------|--------|-------|
 | `routers/auth.py` | `/api/v1/auth` | Register, login (returns JWT) |
 | `routers/drivers.py` | `/api/v1/drivers` | Full CRUD; DELETE requires admin |
+| `routers/circuits.py` | `/api/v1/circuits` | Full CRUD; POST/PUT require auth, DELETE requires admin |
+| `routers/constructors.py` | `/api/v1/constructors` | Full CRUD; POST/PUT require auth, DELETE requires admin |
 | `routers/analytics.py` | `/api/v1/analytics` | Career stats, season progression, driver compare, pit stop analysis, circuit history |
 | `routers/advanced_analytics.py` | `/api/v1/analytics` | Win probability, performance summary, teammate battle, leaderboard |
 
 Both analytics routers share the same URL prefix — route ordering matters to avoid conflicts (e.g. `/drivers/compare` must be registered before `/drivers/{driver_id}`).
+
+## List Endpoint Pattern (circuits, constructors)
+
+`GET /` returns a `*ListResponse` schema that includes aggregated stats (e.g. `total_races`, `total_points`, `wins`) so sort order is meaningful to the caller.
+
+**Implementation:** a single stats subquery (`GROUP BY` on the join table) is computed once and `outerjoin`-ed into the main query. All sort modes (`most_races`, `total_points`, `wins`, `recent`) reference columns from this subquery — no repeated joins per sort branch.
+
+**`sort_by=recent` pattern:** use `last_year` (MAX race year) from the subquery, not a `WHERE year == latest_season` filter. The filter approach silently drops historical records that don't match; the subquery approach keeps all rows and ranks them by recency (missing = 0).
+
+**`sort_by=recent` in drivers.py** uses a different approach: a dedicated subquery filtered to `latest_season` computes points for that season only, then `outerjoin`-ed so historical drivers appear with 0 points instead of disappearing.
 
 ## Known Design Decisions
 
@@ -66,3 +78,4 @@ Both analytics routers share the same URL prefix — route ordering matters to a
 - **Pit stop outlier filtering** — stops `>= 45000ms` are excluded from efficiency calculations to remove red flag anomalies. Use median, not mean.
 - **Overtaking score** — per-race scoring with front-row compensation: if a driver starts and finishes in the top 3, they receive 100 for that race (avoids penalising drivers who have no cars ahead to pass).
 - **N+1 queries fixed** in `analytics.py`: `compare_drivers` and `get_pit_stop_analysis` both use `.in_()` bulk fetches + dict lookups instead of per-row queries.
+- **`Result.position`** is `Integer` (nullable) — safe to compare with `== 1` directly. Use `case((Result.position == 1, 1), else_=0)` for conditional counting, not `func.cast(bool_expr, Integer)`.
