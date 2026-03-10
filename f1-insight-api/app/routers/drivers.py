@@ -50,15 +50,22 @@ def get_drivers(
         )
 
     elif sort_by == "recent":
-        # Latest season points — find the most recent season, rank by points in that season
+        # Latest season points — all drivers appear, historical drivers rank at 0
         latest_season = db.query(func.max(Race.year)).scalar()
+        latest_pts_subq = (
+            db.query(
+                Result.driver_id,
+                func.sum(Result.points).label("latest_points"),
+            )
+            .join(Race, Result.race_id == Race.race_id)
+            .filter(Race.year == latest_season)
+            .group_by(Result.driver_id)
+            .subquery()
+        )
         query = (
             query
-            .outerjoin(Result, Driver.driver_id == Result.driver_id)
-            .outerjoin(Race, Result.race_id == Race.race_id)
-            .filter((Race.year == latest_season) | (Race.year.is_(None)))
-            .group_by(Driver.driver_id)
-            .order_by(func.coalesce(func.sum(Result.points), 0).desc())
+            .outerjoin(latest_pts_subq, Driver.driver_id == latest_pts_subq.c.driver_id)
+            .order_by(func.coalesce(latest_pts_subq.c.latest_points, 0).desc())
         )
 
     elif sort_by == "wins":

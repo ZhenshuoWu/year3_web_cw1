@@ -85,6 +85,11 @@ class ConstructorResponse(ConstructorBase):
         from_attributes = True
 
 
+class ConstructorListResponse(ConstructorResponse):
+    total_points: float
+    wins: int
+
+
 # ==================== Circuit Schemas ====================
 
 class CircuitBase(BaseModel):
