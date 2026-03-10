@@ -79,3 +79,4 @@ Both analytics routers share the same URL prefix — route ordering matters to a
 - **Overtaking score** — per-race scoring with front-row compensation: if a driver starts and finishes in the top 3, they receive 100 for that race (avoids penalising drivers who have no cars ahead to pass).
 - **N+1 queries fixed** in `analytics.py`: `compare_drivers` and `get_pit_stop_analysis` both use `.in_()` bulk fetches + dict lookups instead of per-row queries.
 - **`Result.position`** is `Integer` (nullable) — safe to compare with `== 1` directly. Use `case((Result.position == 1, 1), else_=0)` for conditional counting, not `func.cast(bool_expr, Integer)`.
+
