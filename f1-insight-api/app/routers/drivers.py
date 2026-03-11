@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database import get_db
-from app.models import Driver
+from app.models import Driver, Result
 from app.schemas import DriverCreate, DriverUpdate, DriverResponse
 from app.utils.auth import get_current_user, require_admin
 from sqlalchemy import func
@@ -107,6 +107,12 @@ def create_driver(
     current_user=Depends(get_current_user)
 ):
     """Create a new driver (requires authentication)."""
+    existing = db.query(Driver).filter(Driver.driver_ref == driver_data.driver_ref).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Driver with ref '{driver_data.driver_ref}' already exists"
+        )
     driver = Driver(**driver_data.model_dump())
     db.add(driver)
     db.commit()
@@ -127,6 +133,8 @@ def update_driver(
         raise HTTPException(status_code=404, detail="Driver not found")
 
     update_data = driver_data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
     for field, value in update_data.items():
         setattr(driver, field, value)
 
@@ -145,6 +153,15 @@ def delete_driver(
     driver = db.query(Driver).filter(Driver.driver_id == driver_id).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
+
+    result_count = db.query(func.count(Result.result_id)).filter(
+        Result.driver_id == driver_id
+    ).scalar()
+    if result_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete driver: {result_count} race results are associated. Remove associated results first."
+        )
 
     db.delete(driver)
     db.commit()
