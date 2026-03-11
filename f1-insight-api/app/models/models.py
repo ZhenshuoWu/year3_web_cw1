@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Time, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, Date, Time, ForeignKey, Text, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -73,9 +73,9 @@ class Race(Base):
     __tablename__ = "races"
 
     race_id = Column(Integer, primary_key=True)
-    year = Column(Integer, ForeignKey("seasons.year"), nullable=False)
+    year = Column(Integer, ForeignKey("seasons.year"), nullable=False, index=True)
     round = Column(Integer, nullable=False)
-    circuit_id = Column(Integer, ForeignKey("circuits.circuit_id"), nullable=False)
+    circuit_id = Column(Integer, ForeignKey("circuits.circuit_id"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     date = Column(Date)
     time = Column(String(50), nullable=True)
@@ -103,9 +103,9 @@ class Result(Base):
     __tablename__ = "results"
 
     result_id = Column(Integer, primary_key=True)
-    race_id = Column(Integer, ForeignKey("races.race_id"), nullable=False)
-    driver_id = Column(Integer, ForeignKey("drivers.driver_id"), nullable=False)
-    constructor_id = Column(Integer, ForeignKey("constructors.constructor_id"), nullable=False)
+    race_id = Column(Integer, ForeignKey("races.race_id"), nullable=False, index=True)
+    driver_id = Column(Integer, ForeignKey("drivers.driver_id"), nullable=False, index=True)
+    constructor_id = Column(Integer, ForeignKey("constructors.constructor_id"), nullable=False, index=True)
     number = Column(Integer, nullable=True)
     grid = Column(Integer)
     position = Column(Integer, nullable=True)
@@ -131,8 +131,8 @@ class Qualifying(Base):
     __tablename__ = "qualifying"
 
     qualify_id = Column(Integer, primary_key=True)
-    race_id = Column(Integer, ForeignKey("races.race_id"), nullable=False)
-    driver_id = Column(Integer, ForeignKey("drivers.driver_id"), nullable=False)
+    race_id = Column(Integer, ForeignKey("races.race_id"), nullable=False, index=True)
+    driver_id = Column(Integer, ForeignKey("drivers.driver_id"), nullable=False, index=True)
     constructor_id = Column(Integer, ForeignKey("constructors.constructor_id"), nullable=False)
     number = Column(Integer, nullable=True)
     position = Column(Integer, nullable=True)
@@ -157,6 +157,10 @@ class PitStop(Base):
     duration = Column(String(50), nullable=True)
     milliseconds = Column(Integer, nullable=True)
 
+    __table_args__ = (
+        Index("ix_pit_stops_race_driver", "race_id", "driver_id"),
+    )
+
     race = relationship("Race", back_populates="pit_stops")
     driver = relationship("Driver", back_populates="pit_stops")
 
@@ -171,6 +175,10 @@ class LapTime(Base):
     position = Column(Integer, nullable=True)
     time = Column(String(50), nullable=True)
     milliseconds = Column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index("ix_lap_times_race_driver", "race_id", "driver_id"),
+    )
 
     race = relationship("Race", back_populates="lap_times")
     driver = relationship("Driver", back_populates="lap_times")

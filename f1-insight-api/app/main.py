@@ -4,6 +4,7 @@ from app.config import get_settings
 from app.database import engine, Base
 from app.routers import auth, drivers, analytics
 from app.routers import auth, drivers, analytics, advanced_analytics
+from app.routers import circuits, constructors
 
 settings = get_settings()
 
@@ -42,6 +43,8 @@ app.include_router(auth.router)
 app.include_router(drivers.router)
 app.include_router(analytics.router)
 app.include_router(advanced_analytics.router)
+app.include_router(circuits.router)
+app.include_router(constructors.router)
 
 
 @app.get("/", tags=["Root"])

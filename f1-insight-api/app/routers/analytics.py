@@ -154,11 +154,19 @@ def compare_drivers(
     common_races = d1_races & d2_races
 
     # Head-to-head in common races
+    # Fetch all results for both drivers in one query instead of N*2 queries
+    common_results = (
+        db.query(Result)
+        .filter(Result.driver_id.in_([d1, d2]), Result.race_id.in_(common_races))
+        .all()
+    )
+    result_map = {(r.race_id, r.driver_id): r for r in common_results}
+
     d1_ahead = 0
     d2_ahead = 0
     for race_id in common_races:
-        r1 = db.query(Result).filter(Result.race_id == race_id, Result.driver_id == d1).first()
-        r2 = db.query(Result).filter(Result.race_id == race_id, Result.driver_id == d2).first()
+        r1 = result_map.get((race_id, d1))
+        r2 = result_map.get((race_id, d2))
         if r1 and r2 and r1.position_order and r2.position_order:
             if r1.position_order < r2.position_order:
                 d1_ahead += 1
@@ -211,10 +219,15 @@ def get_pit_stop_analysis(race_id: int, db: Session = Depends(get_db)):
             "milliseconds": ps.milliseconds
         })
 
+    # Fetch all drivers in one query instead of one per result
+    driver_ids = [r.driver_id for r in results]
+    drivers = db.query(Driver).filter(Driver.driver_id.in_(driver_ids)).all()
+    driver_map = {d.driver_id: d for d in drivers}
+
     # Combine with results
     analysis = []
     for result in results:
-        driver = db.query(Driver).filter(Driver.driver_id == result.driver_id).first()
+        driver = driver_map.get(result.driver_id)
         stops = driver_stops.get(result.driver_id, [])
         total_pit_time = sum(s["milliseconds"] or 0 for s in stops)
 

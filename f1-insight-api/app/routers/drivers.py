@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database import get_db
-from app.models import Driver
+from app.models import Driver, Result
 from app.schemas import DriverCreate, DriverUpdate, DriverResponse
 from app.utils.auth import get_current_user, require_admin
 from sqlalchemy import func
@@ -50,15 +50,22 @@ def get_drivers(
         )
 
     elif sort_by == "recent":
-        # Latest season points — find the most recent season, rank by points in that season
+        # Latest season points — all drivers appear, historical drivers rank at 0
         latest_season = db.query(func.max(Race.year)).scalar()
+        latest_pts_subq = (
+            db.query(
+                Result.driver_id,
+                func.sum(Result.points).label("latest_points"),
+            )
+            .join(Race, Result.race_id == Race.race_id)
+            .filter(Race.year == latest_season)
+            .group_by(Result.driver_id)
+            .subquery()
+        )
         query = (
             query
-            .outerjoin(Result, Driver.driver_id == Result.driver_id)
-            .outerjoin(Race, Result.race_id == Race.race_id)
-            .filter((Race.year == latest_season) | (Race.year.is_(None)))
-            .group_by(Driver.driver_id)
-            .order_by(func.coalesce(func.sum(Result.points), 0).desc())
+            .outerjoin(latest_pts_subq, Driver.driver_id == latest_pts_subq.c.driver_id)
+            .order_by(func.coalesce(latest_pts_subq.c.latest_points, 0).desc())
         )
 
     elif sort_by == "wins":
@@ -100,6 +107,12 @@ def create_driver(
     current_user=Depends(get_current_user)
 ):
     """Create a new driver (requires authentication)."""
+    existing = db.query(Driver).filter(Driver.driver_ref == driver_data.driver_ref).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Driver with ref '{driver_data.driver_ref}' already exists"
+        )
     driver = Driver(**driver_data.model_dump())
     db.add(driver)
     db.commit()
@@ -120,6 +133,8 @@ def update_driver(
         raise HTTPException(status_code=404, detail="Driver not found")
 
     update_data = driver_data.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
     for field, value in update_data.items():
         setattr(driver, field, value)
 
@@ -138,6 +153,15 @@ def delete_driver(
     driver = db.query(Driver).filter(Driver.driver_id == driver_id).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
+
+    result_count = db.query(func.count(Result.result_id)).filter(
+        Result.driver_id == driver_id
+    ).scalar()
+    if result_count > 0:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot delete driver: {result_count} race results are associated. Remove associated results first."
+        )
 
     db.delete(driver)
     db.commit()
