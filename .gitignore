@@ -1,0 +1,51 @@
+# ========================
+# Python & Virtual Env
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ========================
+# Environment Variables
+# ========================
+.env
+.env.local
+
+# ========================
+# IDEs & Editors
+# ========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+.DS_Store
+
+# ========================
+# Data, Logs & Databases 
+# ========================
+data/*.csv
+data/*.json
+*.log
+*.sqlite3
+*.db
+# 排除你之前产生的一些临时压缩包
+archive*/
+*.zip
+*.tar.gz
+
+# ========================
+# Testing & Jupyter (Optional but recommended)
+# ========================
+.pytest_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
