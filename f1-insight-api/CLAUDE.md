@@ -14,8 +14,11 @@ uvicorn app.main:app --reload
 # Import F1 data into the database (drops and recreates all F1 tables, preserves users)
 python -m data.import_csv
 
-# Run tests (no test files exist yet)
+# Run tests
 pytest
+
+# Run tests with coverage report
+pytest --cov=app --cov-report=term-missing
 ```
 
 API is available at `http://localhost:8000`, docs at `/docs` and `/redoc`.
@@ -79,4 +82,35 @@ Both analytics routers share the same URL prefix — route ordering matters to a
 - **Overtaking score** — per-race scoring with front-row compensation: if a driver starts and finishes in the top 3, they receive 100 for that race (avoids penalising drivers who have no cars ahead to pass).
 - **N+1 queries fixed** in `analytics.py`: `compare_drivers` and `get_pit_stop_analysis` both use `.in_()` bulk fetches + dict lookups instead of per-row queries.
 - **`Result.position`** is `Integer` (nullable) — safe to compare with `== 1` directly. Use `case((Result.position == 1, 1), else_=0)` for conditional counting, not `func.cast(bool_expr, Integer)`.
+
+## Testing
+
+66 integration tests using **SQLite in-memory** database (no PostgreSQL needed). Tests live in `tests/` with a shared `conftest.py`.
+
+### Test Infrastructure (`tests/conftest.py`)
+
+- **SQLite + StaticPool**: `create_engine("sqlite://", poolclass=StaticPool)` ensures a single shared connection so `create_all` tables are visible to all sessions within a test.
+- **`PRAGMA foreign_keys=ON`**: enabled via SQLAlchemy `event.listens_for(engine, "connect")` since SQLite disables FK enforcement by default.
+- **Dependency override**: `app.dependency_overrides[get_db]` redirects all routes to the test session. Tables are created before each test and dropped after (`autouse` fixture).
+- **Auth fixtures**: `test_user` / `admin_user` create users directly in the DB; `auth_headers` / `admin_headers` generate JWT Bearer tokens for authenticated requests.
+- **`seed_data` fixture**: inserts a minimal F1 dataset (3 drivers, 3 constructors, 2 circuits, 3 races, 8 results, qualifying, pit stops) for integration tests that need populated data.
+
+### Test Structure
+
+| File | Count | Covers |
+|------|-------|--------|
+| `test_auth.py` | 11 | Register (success, duplicate username/email, validation), Login (success, wrong password, nonexistent), Token (no token, invalid token, role 403) |
+| `test_drivers.py` | 15 | List (empty, pagination, nationality filter, search, sort), Get (found, 404), Create (success, duplicate 409, no auth 401), Update (success, 404, empty 400, no auth), Delete (success, 404, FK guard 409, non-admin 403) |
+| `test_circuits.py` | 13 | CRUD + list with stats + detail with race history + FK guard on delete + auth/admin checks |
+| `test_constructors.py` | 12 | CRUD + list with stats + detail with career summary + FK guard on delete + auth/admin checks |
+| `test_analytics.py` | 10 | Career stats, leaderboard (points/wins/season), pit stop analysis, circuit history + 404 paths |
+
+### Coverage (77% overall)
+
+High coverage: `auth.py` 100%, `drivers.py` 92%, `circuits.py` 92%, `constructors.py` 89%, `analytics.py` 66%.
+Low coverage: `advanced_analytics.py` 19% — `win-probability`, `performance-summary`, `teammate-battle` endpoints are not yet tested.
+
+### bcrypt Compatibility
+
+`passlib[bcrypt]` requires `bcrypt<4.1`. Version 4.1+ changed its API and breaks passlib's internal bug-detection routine. Pin `bcrypt==4.0.1` in `requirements.txt` if needed.
 
