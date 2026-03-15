@@ -4,7 +4,13 @@ from app.config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.DATABASE_URL, echo=settings.DEBUG)
+# Render provides DATABASE_URL with "postgres://" prefix,
+# but SQLAlchemy 2.0+ requires "postgresql://".
+_db_url = settings.DATABASE_URL
+if _db_url.startswith("postgres://"):
+    _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+
+engine = create_engine(_db_url, echo=settings.DEBUG)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
