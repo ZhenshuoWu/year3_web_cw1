@@ -4,13 +4,15 @@ from sqlalchemy import func, desc, case
 from typing import Optional
 from app.database import get_db
 from app.models import Constructor, Result, Race, Driver
-from app.schemas import ConstructorCreate, ConstructorUpdate, ConstructorResponse, ConstructorListResponse
+from app.schemas import ConstructorCreate, ConstructorUpdate, ConstructorResponse, ConstructorListResponse, ConstructorDetailResponse
 from app.utils.auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/api/v1/constructors", tags=["Constructors"])
 
 
-@router.get("/", response_model=list[ConstructorListResponse])
+@router.get("/", response_model=list[ConstructorListResponse],
+    summary="List constructors with stats"
+)
 def get_constructors(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -81,7 +83,13 @@ def get_constructors(
     ]
 
 
-@router.get("/{constructor_id}")
+@router.get("/{constructor_id}", response_model=ConstructorDetailResponse,
+    summary="Get constructor detail with career summary",
+    responses={
+        404: {"description": "Constructor not found",
+              "content": {"application/json": {"example": {"detail": "Constructor not found"}}}},
+    }
+)
 def get_constructor(constructor_id: int, db: Session = Depends(get_db)):
     """
     Get a single constructor by ID with career summary and notable drivers.
@@ -158,7 +166,14 @@ def get_constructor(constructor_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/", response_model=ConstructorResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ConstructorResponse, status_code=status.HTTP_201_CREATED,
+    summary="Create a new constructor",
+    responses={
+        401: {"description": "Authentication required"},
+        409: {"description": "Constructor ref already exists",
+              "content": {"application/json": {"example": {"detail": "Constructor with ref 'mercedes' already exists"}}}},
+    }
+)
 def create_constructor(
     constructor_data: ConstructorCreate,
     db: Session = Depends(get_db),
@@ -181,7 +196,14 @@ def create_constructor(
     return constructor
 
 
-@router.put("/{constructor_id}", response_model=ConstructorResponse)
+@router.put("/{constructor_id}", response_model=ConstructorResponse,
+    summary="Update a constructor",
+    responses={
+        400: {"description": "No fields to update"},
+        401: {"description": "Authentication required"},
+        404: {"description": "Constructor not found"},
+    }
+)
 def update_constructor(
     constructor_id: int,
     constructor_data: ConstructorUpdate,
@@ -207,7 +229,16 @@ def update_constructor(
     return constructor
 
 
-@router.delete("/{constructor_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{constructor_id}", status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a constructor",
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Admin privileges required"},
+        404: {"description": "Constructor not found"},
+        409: {"description": "Cannot delete: associated results exist",
+              "content": {"application/json": {"example": {"detail": "Cannot delete constructor: 268 race results are associated with it. Remove associated results first."}}}},
+    }
+)
 def delete_constructor(
     constructor_id: int,
     db: Session = Depends(get_db),

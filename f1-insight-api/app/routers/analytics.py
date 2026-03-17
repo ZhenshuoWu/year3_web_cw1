@@ -4,15 +4,27 @@ from sqlalchemy import func, case, desc
 from typing import Optional
 from app.database import get_db
 from app.models import Driver, Result, Race, Constructor, PitStop, Qualifying, Status
+from app.schemas import (
+    CareerStatsResponse, SeasonProgressionResponse,
+    DriverCompareResponse, PitStopAnalysisResponse, CircuitHistoryResponse,
+)
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["Analytics"])
 
 
-@router.get("/drivers/{driver_id}/career-stats")
+@router.get("/drivers/{driver_id}/career-stats", response_model=CareerStatsResponse,
+    summary="Get driver career stats",
+    responses={
+        404: {"description": "Driver not found or no race data",
+              "content": {"application/json": {"example": {"detail": "Driver not found"}}}},
+    }
+)
 def get_driver_career_stats(driver_id: int, db: Session = Depends(get_db)):
     """
     Get comprehensive career statistics for a driver.
-    Includes: total races, wins, podiums, poles, points, win rate, etc.
+
+    Includes total races, wins, podiums, poles, points, DNFs, win/podium rates,
+    teams driven for, and active seasons.
     """
     driver = db.query(Driver).filter(Driver.driver_id == driver_id).first()
     if not driver:
@@ -64,7 +76,13 @@ def get_driver_career_stats(driver_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/drivers/{driver_id}/season-progression")
+@router.get("/drivers/{driver_id}/season-progression", response_model=SeasonProgressionResponse,
+    summary="Get season points progression",
+    responses={
+        404: {"description": "Driver not found or no data for season",
+              "content": {"application/json": {"example": {"detail": "No data for this driver in the specified season"}}}},
+    }
+)
 def get_driver_season_progression(
     driver_id: int,
     season: int = Query(..., description="Season year"),
@@ -109,7 +127,13 @@ def get_driver_season_progression(
     }
 
 
-@router.get("/drivers/compare")
+@router.get("/drivers/compare", response_model=DriverCompareResponse,
+    summary="Compare two drivers head-to-head",
+    responses={
+        404: {"description": "One or both drivers not found",
+              "content": {"application/json": {"example": {"detail": "One or both drivers not found"}}}},
+    }
+)
 def compare_drivers(
     d1: int = Query(..., description="First driver ID"),
     d2: int = Query(..., description="Second driver ID"),
@@ -184,18 +208,26 @@ def compare_drivers(
         },
         "head_to_head": {
             "common_races": len(common_races),
-            f"{driver1.surname}_ahead": d1_ahead,
-            f"{driver2.surname}_ahead": d2_ahead
+            "driver_1_ahead": d1_ahead,
+            "driver_2_ahead": d2_ahead,
         },
         "season_filter": season
     }
 
 
-@router.get("/races/{race_id}/pit-stop-analysis")
+@router.get("/races/{race_id}/pit-stop-analysis", response_model=PitStopAnalysisResponse,
+    summary="Analyse pit stop strategies",
+    responses={
+        404: {"description": "Race not found or no pit stop data",
+              "content": {"application/json": {"example": {"detail": "No pit stop data available for this race"}}}},
+    }
+)
 def get_pit_stop_analysis(race_id: int, db: Session = Depends(get_db)):
     """
     Analyse pit stop strategies and their impact on race results for a given race.
-    Shows correlation between number of stops, pit duration, and final position.
+
+    Shows per-driver stop count, total pit time, and strategy summary with
+    average finishing position by number of stops.
     """
     race = db.query(Race).filter(Race.race_id == race_id).first()
     if not race:
@@ -268,11 +300,19 @@ def get_pit_stop_analysis(race_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/circuits/{circuit_id}/history")
+@router.get("/circuits/{circuit_id}/history", response_model=CircuitHistoryResponse,
+    summary="Get circuit historical stats",
+    responses={
+        404: {"description": "No races found for this circuit",
+              "content": {"application/json": {"example": {"detail": "No races found for this circuit"}}}},
+    }
+)
 def get_circuit_history(circuit_id: int, db: Session = Depends(get_db)):
     """
     Get historical statistics for a circuit.
-    Includes: all races held, average finishers, most successful drivers.
+
+    Includes total races held, first/last race year, and top 5 most successful
+    drivers by wins at this circuit.
     """
     from sqlalchemy import func
 

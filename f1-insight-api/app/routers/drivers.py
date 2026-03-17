@@ -11,7 +11,9 @@ from sqlalchemy import Integer
 router = APIRouter(prefix="/api/v1/drivers", tags=["Drivers"])
 
 
-@router.get("/", response_model=list[DriverResponse])
+@router.get("/", response_model=list[DriverResponse],
+    summary="List drivers"
+)
 def get_drivers(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -91,7 +93,13 @@ def get_drivers(
     return drivers
 
 
-@router.get("/{driver_id}", response_model=DriverResponse)
+@router.get("/{driver_id}", response_model=DriverResponse,
+    summary="Get driver by ID",
+    responses={
+        404: {"description": "Driver not found",
+              "content": {"application/json": {"example": {"detail": "Driver not found"}}}},
+    }
+)
 def get_driver(driver_id: int, db: Session = Depends(get_db)):
     """Get a single driver by ID."""
     driver = db.query(Driver).filter(Driver.driver_id == driver_id).first()
@@ -100,7 +108,14 @@ def get_driver(driver_id: int, db: Session = Depends(get_db)):
     return driver
 
 
-@router.post("/", response_model=DriverResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=DriverResponse, status_code=status.HTTP_201_CREATED,
+    summary="Create a new driver",
+    responses={
+        401: {"description": "Authentication required"},
+        409: {"description": "Driver ref already exists",
+              "content": {"application/json": {"example": {"detail": "Driver with ref 'hamilton' already exists"}}}},
+    }
+)
 def create_driver(
     driver_data: DriverCreate,
     db: Session = Depends(get_db),
@@ -120,7 +135,15 @@ def create_driver(
     return driver
 
 
-@router.put("/{driver_id}", response_model=DriverResponse)
+@router.put("/{driver_id}", response_model=DriverResponse,
+    summary="Update a driver",
+    responses={
+        400: {"description": "No fields to update",
+              "content": {"application/json": {"example": {"detail": "No fields to update"}}}},
+        401: {"description": "Authentication required"},
+        404: {"description": "Driver not found"},
+    }
+)
 def update_driver(
     driver_id: int,
     driver_data: DriverUpdate,
@@ -143,7 +166,16 @@ def update_driver(
     return driver
 
 
-@router.delete("/{driver_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{driver_id}", status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a driver",
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Admin privileges required"},
+        404: {"description": "Driver not found"},
+        409: {"description": "Cannot delete: associated race results exist",
+              "content": {"application/json": {"example": {"detail": "Cannot delete driver: 150 race results are associated. Remove associated results first."}}}},
+    }
+)
 def delete_driver(
     driver_id: int,
     db: Session = Depends(get_db),

@@ -4,6 +4,10 @@ from sqlalchemy import func, case, desc, and_, Float
 from typing import Optional
 from app.database import get_db
 from app.models import Driver, Result, Race, Constructor, PitStop, Qualifying, Status, Circuit
+from app.schemas import (
+    WinProbabilityResponse, PerformanceSummaryResponse,
+    TeammateBattleResponse, LeaderboardResponse,
+)
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["Advanced Analytics"])
 
@@ -11,7 +15,13 @@ router = APIRouter(prefix="/api/v1/analytics", tags=["Advanced Analytics"])
 # ==================== 1. WIN PROBABILITY ====================
 #check if driver and circuit exist, then calculate win probability based on historical performance, recent form, grid conversion, and career baseline. Return a detailed breakdown of factors contributing to the probability score.
 
-@router.get("/win-probability")
+@router.get("/win-probability", response_model=WinProbabilityResponse,
+    summary="Predict win probability",
+    responses={
+        404: {"description": "Driver or circuit not found",
+              "content": {"application/json": {"example": {"detail": "Driver not found"}}}},
+    }
+)
 def get_win_probability(
     driver_id: int = Query(..., description="Driver ID"),
     circuit_id: int = Query(..., description="Circuit ID"),
@@ -151,7 +161,13 @@ def get_win_probability(
 
 # ==================== 2. PERFORMANCE SUMMARY ====================
 
-@router.get("/drivers/{driver_id}/performance-summary")
+@router.get("/drivers/{driver_id}/performance-summary", response_model=PerformanceSummaryResponse,
+    summary="Get multi-dimensional performance rating",
+    responses={
+        404: {"description": "Driver not found or no data",
+              "content": {"application/json": {"example": {"detail": "No data found for this driver"}}}},
+    }
+)
 def get_performance_summary(
     driver_id: int,
     season: Optional[int] = Query(None, description="Filter by season (default: all-time)"),
@@ -328,7 +344,13 @@ def get_performance_summary(
 
 # ==================== 3. TEAMMATE BATTLE ====================
 
-@router.get("/teammate-battle")
+@router.get("/teammate-battle", response_model=TeammateBattleResponse,
+    summary="Compare driver vs teammate(s)",
+    responses={
+        404: {"description": "Driver not found or no data for season",
+              "content": {"application/json": {"example": {"detail": "No data for this driver in 2024"}}}},
+    }
+)
 def get_teammate_battle(
     driver_id: int = Query(..., description="Driver ID"),
     season: int = Query(..., description="Season year"),
@@ -433,22 +455,22 @@ def get_teammate_battle(
                 "teammate": f"{teammate.forename} {teammate.surname}",
                 "common_races": len(common_races),
                 "qualifying": {
-                    f"{driver.surname}": quali_driver_ahead,
-                    f"{teammate.surname}": quali_teammate_ahead,
+                    "driver_wins": quali_driver_ahead,
+                    "teammate_wins": quali_teammate_ahead,
                     "winner": driver.surname if quali_driver_ahead > quali_teammate_ahead
                              else teammate.surname if quali_teammate_ahead > quali_driver_ahead
                              else "Tied"
                 },
                 "race": {
-                    f"{driver.surname}": race_driver_ahead,
-                    f"{teammate.surname}": race_teammate_ahead,
+                    "driver_wins": race_driver_ahead,
+                    "teammate_wins": race_teammate_ahead,
                     "winner": driver.surname if race_driver_ahead > race_teammate_ahead
                              else teammate.surname if race_teammate_ahead > race_driver_ahead
                              else "Tied"
                 },
                 "points": {
-                    f"{driver.surname}": round(driver_total_points, 1),
-                    f"{teammate.surname}": round(teammate_total_points, 1),
+                    "driver_points": round(driver_total_points, 1),
+                    "teammate_points": round(teammate_total_points, 1),
                     "winner": driver.surname if driver_total_points > teammate_total_points
                              else teammate.surname if teammate_total_points > driver_total_points
                              else "Tied"
@@ -464,7 +486,12 @@ def get_teammate_battle(
 
 # ==================== 4. DYNAMIC LEADERBOARD ====================
 
-@router.get("/leaderboard")
+@router.get("/leaderboard", response_model=LeaderboardResponse,
+    summary="Get driver leaderboard",
+    responses={
+        422: {"description": "Invalid metric or parameter"},
+    }
+)
 def get_leaderboard(
     season: Optional[int] = Query(None, description="Season year (default: all-time)"),
     metric: str = Query("points", description="Ranking metric: 'points', 'wins', 'podiums', 'win_rate'"),

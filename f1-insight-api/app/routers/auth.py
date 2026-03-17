@@ -9,9 +9,15 @@ from app.utils.auth import get_password_hash, verify_password, create_access_tok
 router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED,
+    summary="Register a new user",
+    responses={
+        400: {"description": "Username or email already registered",
+              "content": {"application/json": {"example": {"detail": "Username already registered"}}}},
+    }
+)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user."""
+    """Register a new user account. Username and email must be unique."""
     # Check if username or email already exists
     if db.query(User).filter(User.username == user_data.username).first():
         raise HTTPException(status_code=400, detail="Username already registered")
@@ -30,9 +36,15 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token,
+    summary="Login",
+    responses={
+        401: {"description": "Invalid credentials",
+              "content": {"application/json": {"example": {"detail": "Incorrect username or password"}}}},
+    }
+)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Login and receive a JWT access token."""
+    """Login with username and password to receive a JWT access token. Use the token as `Bearer <token>` in the Authorization header."""
     user = db.query(User).filter(User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(

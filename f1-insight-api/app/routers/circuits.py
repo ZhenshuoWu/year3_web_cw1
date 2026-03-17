@@ -4,13 +4,15 @@ from sqlalchemy import func, desc
 from typing import Optional
 from app.database import get_db
 from app.models import Circuit, Race, Result, Driver
-from app.schemas import CircuitCreate, CircuitUpdate, CircuitResponse, CircuitListResponse
+from app.schemas import CircuitCreate, CircuitUpdate, CircuitResponse, CircuitListResponse, CircuitDetailResponse
 from app.utils.auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/api/v1/circuits", tags=["Circuits"])
 
 
-@router.get("/", response_model=list[CircuitListResponse])
+@router.get("/", response_model=list[CircuitListResponse],
+    summary="List circuits with stats"
+)
 def get_circuits(
     page: int = Query(1, ge=1, description="Page number"),
     per_page: int = Query(20, ge=1, le=100, description="Items per page"),
@@ -73,7 +75,13 @@ def get_circuits(
     ]
 
 
-@router.get("/{circuit_id}")
+@router.get("/{circuit_id}", response_model=CircuitDetailResponse,
+    summary="Get circuit detail with race history",
+    responses={
+        404: {"description": "Circuit not found",
+              "content": {"application/json": {"example": {"detail": "Circuit not found"}}}},
+    }
+)
 def get_circuit(circuit_id: int, db: Session = Depends(get_db)):
     """
     Get a single circuit by ID with recent race history.
@@ -128,7 +136,14 @@ def get_circuit(circuit_id: int, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/", response_model=CircuitResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=CircuitResponse, status_code=status.HTTP_201_CREATED,
+    summary="Create a new circuit",
+    responses={
+        401: {"description": "Authentication required"},
+        409: {"description": "Circuit ref already exists",
+              "content": {"application/json": {"example": {"detail": "Circuit with ref 'silverstone' already exists"}}}},
+    }
+)
 def create_circuit(
     circuit_data: CircuitCreate,
     db: Session = Depends(get_db),
@@ -150,7 +165,14 @@ def create_circuit(
     return circuit
 
 
-@router.put("/{circuit_id}", response_model=CircuitResponse)
+@router.put("/{circuit_id}", response_model=CircuitResponse,
+    summary="Update a circuit",
+    responses={
+        400: {"description": "No fields to update"},
+        401: {"description": "Authentication required"},
+        404: {"description": "Circuit not found"},
+    }
+)
 def update_circuit(
     circuit_id: int,
     circuit_data: CircuitUpdate,
@@ -174,7 +196,16 @@ def update_circuit(
     return circuit
 
 
-@router.delete("/{circuit_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{circuit_id}", status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a circuit",
+    responses={
+        401: {"description": "Authentication required"},
+        403: {"description": "Admin privileges required"},
+        404: {"description": "Circuit not found"},
+        409: {"description": "Cannot delete: associated races exist",
+              "content": {"application/json": {"example": {"detail": "Cannot delete circuit: 59 races are associated with it. Remove associated races first."}}}},
+    }
+)
 def delete_circuit(
     circuit_id: int,
     db: Session = Depends(get_db),
