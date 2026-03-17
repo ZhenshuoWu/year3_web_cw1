@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Time, ForeignKey, Text, Index
+from sqlalchemy import Column, Integer, String, Float, Date, Time, ForeignKey, Text, Index, DateTime, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -192,3 +192,5 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), default="user")  # "user" or "admin"
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)

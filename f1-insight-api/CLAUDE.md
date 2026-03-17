@@ -42,15 +42,78 @@ There is no active service layer (`app/services/` is empty). All business logic 
 - `get_current_user` — requires valid JWT, returns User
 - `require_admin` — requires `user.role == "admin"`
 
-## Data Model
+## Database
 
-10 tables imported from Ergast F1 CSV dataset (1950–2024). Import order matters due to foreign keys:
+### Tech Stack
 
-`seasons` → `circuits` → `drivers` → `constructors` → `status` → `races` → `results` → `qualifying` → `pit_stops` → `lap_times`
+- **DBMS**: PostgreSQL (local dev: `postgresql://surewu@localhost:5432/f1_insight`, production: Render PostgreSQL)
+- **ORM**: SQLAlchemy 2.0 (declarative base via `DeclarativeBase`)
+- **Session management**: `sessionmaker` with per-request `get_db()` dependency (`app/database.py`)
+- **Config**: `DATABASE_URL` loaded from `.env` via pydantic-settings (`app/config.py`)
+- **Render compatibility**: auto-replaces `postgres://` → `postgresql://` at startup (SQLAlchemy 2.0+ requirement)
+
+### Database Construction
+
+Database is built in two parts:
+
+1. **Schema creation**: `Base.metadata.create_all(bind=engine)` in `data/import_csv.py` creates all tables from SQLAlchemy models (`app/models/models.py`). No Alembic migrations — schema is managed entirely through model definitions.
+
+2. **Data import** (`python -m data.import_csv`):
+   - Reads 10 CSV files from `data/` directory (Ergast F1 dataset, 1950–2024)
+   - Drops and recreates F1 data tables only (preserves `users` table)
+   - Imports in FK-respecting order within a single transaction (rollback on failure)
+   - Uses pandas `to_sql()` with `chunksize=5000` for bulk insert
+   - CSV column names are mapped from camelCase to snake_case via `COLUMN_MAPPINGS` dict
+   - `\N` and empty strings in CSV are cleaned to `None`
 
 4 CSV files intentionally not imported (`driver_standings`, `constructor_standings`, `constructor_results`, `sprint_results`) — their data is derived at query time via aggregation in the analytics endpoints.
 
-**PitStop** and **LapTime** use surrogate autoincrement PKs with a composite index on `(race_id, driver_id)`. Natural key would be `(race_id, driver_id, stop/lap)` but ORM ergonomics favour the surrogate key.
+### Table Structure (11 tables)
+
+**F1 Data Tables** (10 tables, imported from CSV):
+
+Import order: `seasons` → `circuits` → `drivers` → `constructors` → `status` → `races` → `results` → `qualifying` → `pit_stops` → `lap_times`
+
+| Table | PK | Key Columns | Foreign Keys | Indexes |
+|-------|-----|-------------|--------------|---------|
+| `seasons` | `year` (INT) | `url` | — | — |
+| `circuits` | `circuit_id` (INT) | `circuit_ref`, `name`, `location`, `country`, `lat`, `lng`, `alt`, `url` | — | — |
+| `drivers` | `driver_id` (INT) | `driver_ref`, `number`?, `code`?, `forename`, `surname`, `dob`?, `nationality`, `url` | — | — |
+| `constructors` | `constructor_id` (INT) | `constructor_ref`, `name`, `nationality`, `url` | — | — |
+| `status` | `status_id` (INT) | `status` | — | — |
+| `races` | `race_id` (INT) | `year`, `round`, `circuit_id`, `name`, `date`, `time`?, `url`, `fp1/fp2/fp3/quali/sprint_date`?, `fp1/fp2/fp3/quali/sprint_time`? | `year` → `seasons.year`, `circuit_id` → `circuits.circuit_id` | `ix_races_year`, `ix_races_circuit_id` |
+| `results` | `result_id` (INT) | `race_id`, `driver_id`, `constructor_id`, `number`?, `grid`, `position`?, `position_text`, `position_order`, `points`, `laps`, `time`?, `milliseconds`?, `fastest_lap`?, `rank`?, `fastest_lap_time`?, `fastest_lap_speed`?, `status_id` | `race_id` → `races.race_id`, `driver_id` → `drivers.driver_id`, `constructor_id` → `constructors.constructor_id`, `status_id` → `status.status_id` | `ix_results_race_id`, `ix_results_driver_id`, `ix_results_constructor_id` |
+| `qualifying` | `qualify_id` (INT) | `race_id`, `driver_id`, `constructor_id`, `number`?, `position`?, `q1`?, `q2`?, `q3`? | `race_id` → `races.race_id`, `driver_id` → `drivers.driver_id`, `constructor_id` → `constructors.constructor_id` | `ix_qualifying_race_id`, `ix_qualifying_driver_id` |
+| `pit_stops` | `id` (INT, auto) | `race_id`, `driver_id`, `stop`, `lap`, `time`?, `duration`?, `milliseconds`? | `race_id` → `races.race_id`, `driver_id` → `drivers.driver_id` | composite `ix_pit_stops_race_driver` on `(race_id, driver_id)` |
+| `lap_times` | `id` (INT, auto) | `race_id`, `driver_id`, `lap`, `position`?, `time`?, `milliseconds`? | `race_id` → `races.race_id`, `driver_id` → `drivers.driver_id` | composite `ix_lap_times_race_driver` on `(race_id, driver_id)` |
+
+`?` = nullable column.
+
+**Application Table** (1 table, managed by the app):
+
+| Table | PK | Columns | Notes |
+|-------|-----|---------|-------|
+| `users` | `id` (INT, auto) | `username` (unique, indexed), `email` (unique, indexed), `hashed_password`, `role` (default `"user"`), `created_at` (auto, `server_default=now()`), `updated_at` (auto, `onupdate=now()`) | Not touched by CSV import; passwords hashed via `passlib[bcrypt]` (pinned `bcrypt==4.0.1`) |
+
+### Key Relationships (ER)
+
+```
+seasons ──1:N──→ races ──1:N──→ results ──N:1──→ drivers
+                   │               │                  │
+                   │               ├──N:1──→ constructors
+                   │               └──N:1──→ status
+                   ├──1:N──→ qualifying
+                   ├──1:N──→ pit_stops ──N:1──→ drivers
+                   └──1:N──→ lap_times ──N:1──→ drivers
+circuits ──1:N──→ races
+```
+
+### Design Notes
+
+- **PitStop & LapTime** use surrogate autoincrement PKs. Natural key would be `(race_id, driver_id, stop/lap)` but ORM ergonomics favour the surrogate key.
+- **`Result.position`** is `Integer` (nullable) — DNF/DNS drivers have `NULL` position. Safe to compare with `== 1` directly.
+- **No Alembic**: schema changes require either manual `ALTER TABLE` or a full re-import of F1 data tables. The `users` table is preserved across re-imports.
+- **Test DB**: tests use SQLite in-memory (`sqlite://` with `StaticPool`) — no PostgreSQL needed for testing.
 
 ## Router Overview
 
@@ -112,5 +175,27 @@ Low coverage: `advanced_analytics.py` 19% — `win-probability`, `performance-su
 
 ### bcrypt Compatibility
 
-`passlib[bcrypt]` requires `bcrypt<4.1`. Version 4.1+ changed its API and breaks passlib's internal bug-detection routine. Pin `bcrypt==4.0.1` in `requirements.txt` if needed.
+`passlib[bcrypt]` requires `bcrypt<4.1`. Version 4.1+ changed its API and breaks passlib's internal bug-detection routine. Pinned `bcrypt==4.0.1` in `requirements.txt`.
+
+## Deployment (Render)
+
+Deployed on Render with `render.yaml` blueprint (web service + PostgreSQL).
+
+### Render-specific Adaptations
+
+- **`database.py` URL fix**: Render provides `DATABASE_URL` with `postgres://` prefix, but SQLAlchemy 2.0+ requires `postgresql://`. Auto-replaced at startup.
+- **`render.yaml`**: Uses `cd f1-insight-api &&` in build/start commands because the project is in a subdirectory of the repo (not at repo root).
+- **Environment variables**: `DATABASE_URL` (from Render DB), `SECRET_KEY` (auto-generated), `DEBUG=false`, `PYTHON_VERSION=3.12.2`.
+
+### Data Import on Render
+
+CSV files are in `.gitignore` (`data/*.csv`) and won't be on Render. To populate the database, connect from local machine using Render's External Connection String:
+```bash
+DATABASE_URL="<Render External URL>" python -m data.import_csv
+```
+
+### Render Free Tier Limitations
+
+- PostgreSQL expires after 90 days (manual renewal required).
+- Web service sleeps after 15 min of inactivity; first request has ~30-50s cold start.
 
