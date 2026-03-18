@@ -4,11 +4,12 @@ A comprehensive Formula 1 historical data analysis RESTful API built with FastAP
 
 ## Features
 
-- **CRUD Operations**: Full Create, Read, Update, Delete for drivers, constructors, circuits, and races
-- **Analytics Endpoints**: Career statistics, season progressions, driver comparisons, pit stop analysis
+- **CRUD Operations**: Full Create, Read, Update, Delete for drivers, constructors, and circuits
+- **Analytics Endpoints**: Career statistics, season progressions, driver comparisons, pit stop analysis, circuit history
+- **Advanced Analytics**: Win probability prediction, performance ratings, teammate battles, leaderboards
 - **JWT Authentication**: Secure endpoints with role-based access control (user/admin)
 - **Auto-generated Documentation**: Interactive Swagger UI and ReDoc
-- **Data Source**: Ergast F1 Dataset (1950–2024) with 8 normalised database tables
+- **Data Source**: Ergast F1 Dataset (1950–2024), application models 11 tables from 14 source CSVs
 
 ## Tech Stack
 
@@ -17,9 +18,8 @@ A comprehensive Formula 1 historical data analysis RESTful API built with FastAP
 | Framework | FastAPI |
 | ORM | SQLAlchemy 2.0 |
 | Database | PostgreSQL 14+ |
-| Migration | Alembic |
-| Auth | JWT (python-jose) |
-| Testing | pytest + httpx |
+| Auth | JWT (python-jose) + passlib[bcrypt] |
+| Testing | pytest + FastAPI TestClient (SQLite in-memory) |
 
 ## Quick Start
 
@@ -31,8 +31,8 @@ A comprehensive Formula 1 historical data analysis RESTful API built with FastAP
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/f1-insight-api.git
-cd f1-insight-api
+git clone https://github.com/ZhenshuoWu/year3_web_cw1.git
+cd year3_web_cw1
 
 # Create virtual environment
 python -m venv venv
@@ -45,8 +45,10 @@ pip install -r requirements.txt
 createdb f1_insight
 
 # Configure environment
-cp .env.example .env
-# Edit .env with your database credentials
+# Create a .env file with the following variables:
+#   DATABASE_URL=postgresql://your_user@localhost:5432/f1_insight
+#   SECRET_KEY=your-secret-key
+#   ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Import F1 data
 python -m data.import_csv
@@ -60,6 +62,11 @@ uvicorn app.main:app --reload
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
+## API Documentation
+
+- **Interactive docs** (live server): [Swagger UI](/docs) | [ReDoc](/redoc)
+- **OpenAPI specification**: [`docs/openapi.json`](docs/openapi.json) — machine-readable schema, can be imported into Postman or Swagger Editor
+
 ## API Endpoints
 
 ### Authentication
@@ -71,11 +78,29 @@ uvicorn app.main:app --reload
 ### Drivers (CRUD)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/drivers` | List drivers (paginated, filterable) |
+| GET | `/api/v1/drivers` | List drivers (paginated, filterable, sortable) |
 | GET | `/api/v1/drivers/{id}` | Get driver details |
 | POST | `/api/v1/drivers` | Create driver (auth required) |
 | PUT | `/api/v1/drivers/{id}` | Update driver (auth required) |
 | DELETE | `/api/v1/drivers/{id}` | Delete driver (admin only) |
+
+### Circuits (CRUD)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/circuits` | List circuits with race stats |
+| GET | `/api/v1/circuits/{id}` | Circuit detail with recent winners |
+| POST | `/api/v1/circuits` | Create circuit (auth required) |
+| PUT | `/api/v1/circuits/{id}` | Update circuit (auth required) |
+| DELETE | `/api/v1/circuits/{id}` | Delete circuit (admin only) |
+
+### Constructors (CRUD)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/constructors` | List constructors with points and wins |
+| GET | `/api/v1/constructors/{id}` | Constructor detail with top drivers |
+| POST | `/api/v1/constructors` | Create constructor (auth required) |
+| PUT | `/api/v1/constructors/{id}` | Update constructor (auth required) |
+| DELETE | `/api/v1/constructors/{id}` | Delete constructor (admin only) |
 
 ### Analytics
 | Method | Endpoint | Description |
@@ -86,29 +111,35 @@ uvicorn app.main:app --reload
 | GET | `/api/v1/analytics/races/{id}/pit-stop-analysis` | Pit stop strategy analysis |
 | GET | `/api/v1/analytics/circuits/{id}/history` | Circuit historical statistics |
 
+### Advanced Analytics
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/analytics/win-probability` | Win probability prediction |
+| GET | `/api/v1/analytics/drivers/{id}/performance-summary` | Multi-dimensional performance rating |
+| GET | `/api/v1/analytics/teammate-battle` | Teammate head-to-head comparison |
+| GET | `/api/v1/analytics/leaderboard` | Dynamic leaderboard by various metrics |
+
 ## Project Structure
 
 ```
-f1-insight-api/
+year3_web_cw1/
 ├── app/
 │   ├── main.py              # FastAPI application entry point
-│   ├── config.py            # Configuration management
-│   ├── database.py          # Database connection
+│   ├── config.py            # Configuration management (pydantic-settings)
+│   ├── database.py          # Database connection and session
 │   ├── models/              # SQLAlchemy ORM models
 │   ├── schemas/             # Pydantic validation schemas
 │   ├── routers/             # API route handlers
-│   ├── services/            # Business logic layer
-│   ├── middleware/           # Rate limiting, logging
-│   └── utils/               # Authentication, helpers
-├── tests/                   # Test suite
-├── data/                    # CSV data and import scripts
+│   └── utils/               # Authentication helpers
+├── tests/                   # Integration test suite (66 tests)
+├── data/                    # CSV data and import script
 ├── requirements.txt
 └── README.md
 ```
 
 ## Data Source
 
-This API uses the [Ergast F1 Dataset](https://www.kaggle.com/datasets/) covering Formula 1 race data from 1950 to 2024. The dataset is imported into a normalised PostgreSQL schema with 8 interconnected tables.
+This API uses the [Ergast F1 Dataset](http://ergast.com/mrd/) covering Formula 1 race data from 1950 to 2024. The repository ships 14 CSV files; 10 are imported into the database, while the remaining 4 (`driver_standings`, `constructor_standings`, `constructor_results`, `sprint_results`) are not imported — their data is derived at query time via aggregation. Together with the application `users` table, the database schema consists of 11 tables. Schema is managed directly through SQLAlchemy model definitions — no migration tool is used.
 
 ## License
 

@@ -184,7 +184,7 @@ Deployed on Render with `render.yaml` blueprint (web service + PostgreSQL).
 ### Render-specific Adaptations
 
 - **`database.py` URL fix**: Render provides `DATABASE_URL` with `postgres://` prefix, but SQLAlchemy 2.0+ requires `postgresql://`. Auto-replaced at startup.
-- **`render.yaml`**: Uses `cd f1-insight-api &&` in build/start commands because the project is in a subdirectory of the repo (not at repo root).
+- **`render.yaml`**: Build and start commands run directly from the repo root.
 - **Environment variables**: `DATABASE_URL` (from Render DB), `SECRET_KEY` (auto-generated), `DEBUG=false`, `PYTHON_VERSION=3.12.2`.
 
 ### Data Import on Render

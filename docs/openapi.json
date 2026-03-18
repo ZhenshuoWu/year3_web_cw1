@@ -1,0 +1,5435 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "F1 Insight API",
+    "description": "\n## F1 Insight API\n\nA comprehensive Formula 1 historical data analysis API covering **every season from 1950 to 2024**.\n\n### Features\n\n- **CRUD Operations** - Manage drivers, constructors, and circuits with full pagination, filtering, and sorting\n- **Career Analytics** - Lifetime stats, season progression curves, head-to-head driver comparisons\n- **Strategy Analysis** - Pit stop strategies, circuit history, performance trends\n- **Advanced Models** - Win probability prediction, multi-dimensional performance ratings, teammate battles, leaderboards\n\n### Authentication\n\nProtected endpoints require a JWT Bearer token. Register via `POST /api/v1/auth/register`, then login via `POST /api/v1/auth/login` to receive your token.\n\n### Data Source\n\n[Ergast F1 Dataset](http://ergast.com/mrd/) - 10 tables, 26,000+ race results, 850+ drivers.\n    ",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Register a new user",
+        "description": "Register a new user account. Username and email must be unique.",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Username or email already registered",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Username already registered"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Login",
+        "description": "Login with username and password to receive a JWT access token. Use the token as `Bearer <token>` in the Authorization header.",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_login_api_v1_auth_login_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Token"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Incorrect username or password"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drivers/": {
+      "get": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "List drivers",
+        "description": "Get a paginated list of drivers with optional filters and smart sorting.",
+        "operationId": "get_drivers_api_v1_drivers__get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "nationality",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by nationality",
+              "title": "Nationality"
+            },
+            "description": "Filter by nationality"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search by name, surname, or driver_ref",
+              "title": "Search"
+            },
+            "description": "Search by name, surname, or driver_ref"
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sort by: 'newest', 'oldest', 'popularity' (all-time points), 'recent' (latest season points), 'wins' (total wins)",
+              "default": "newest",
+              "title": "Sort By"
+            },
+            "description": "Sort by: 'newest', 'oldest', 'popularity' (all-time points), 'recent' (latest season points), 'wins' (total wins)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriverResponse"
+                  },
+                  "title": "Response Get Drivers Api V1 Drivers  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Create a new driver",
+        "description": "Create a new driver (requires authentication).",
+        "operationId": "create_driver_api_v1_drivers__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "409": {
+            "description": "Driver ref already exists",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Driver with ref 'hamilton' already exists"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drivers/{driver_id}": {
+      "get": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Get driver by ID",
+        "description": "Get a single driver by ID.",
+        "operationId": "get_driver_api_v1_drivers__driver_id__get",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Driver Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Driver not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Driver not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Update a driver",
+        "description": "Update a driver (requires authentication).",
+        "operationId": "update_driver_api_v1_drivers__driver_id__put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Driver Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields to update",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "No fields to update"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Driver not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Drivers"
+        ],
+        "summary": "Delete a driver",
+        "description": "Delete a driver (requires admin privileges).",
+        "operationId": "delete_driver_api_v1_drivers__driver_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Driver Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Admin privileges required"
+          },
+          "404": {
+            "description": "Driver not found"
+          },
+          "409": {
+            "description": "Cannot delete: associated race results exist",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Cannot delete driver: 150 race results are associated. Remove associated results first."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/drivers/{driver_id}/career-stats": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get driver career stats",
+        "description": "Get comprehensive career statistics for a driver.\n\nIncludes total races, wins, podiums, poles, points, DNFs, win/podium rates,\nteams driven for, and active seasons.",
+        "operationId": "get_driver_career_stats_api_v1_analytics_drivers__driver_id__career_stats_get",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Driver Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CareerStatsResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Driver not found or no race data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Driver not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/drivers/{driver_id}/season-progression": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get season points progression",
+        "description": "Get a driver's points accumulation across a season.\nReturns round-by-round cumulative points for charting progression curves.",
+        "operationId": "get_driver_season_progression_api_v1_analytics_drivers__driver_id__season_progression_get",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Season year",
+              "title": "Season"
+            },
+            "description": "Season year"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeasonProgressionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Driver not found or no data for season",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "No data for this driver in the specified season"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/drivers/compare": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Compare two drivers head-to-head",
+        "description": "Head-to-head comparison between two drivers.\nCompares wins, points, podiums, and direct race encounters.",
+        "operationId": "compare_drivers_api_v1_analytics_drivers_compare_get",
+        "parameters": [
+          {
+            "name": "d1",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "First driver ID",
+              "title": "D1"
+            },
+            "description": "First driver ID"
+          },
+          {
+            "name": "d2",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Second driver ID",
+              "title": "D2"
+            },
+            "description": "Second driver ID"
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional season filter",
+              "title": "Season"
+            },
+            "description": "Optional season filter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverCompareResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "One or both drivers not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "One or both drivers not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/races/{race_id}/pit-stop-analysis": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Analyse pit stop strategies",
+        "description": "Analyse pit stop strategies and their impact on race results for a given race.\n\nShows per-driver stop count, total pit time, and strategy summary with\naverage finishing position by number of stops.",
+        "operationId": "get_pit_stop_analysis_api_v1_analytics_races__race_id__pit_stop_analysis_get",
+        "parameters": [
+          {
+            "name": "race_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Race Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PitStopAnalysisResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Race not found or no pit stop data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "No pit stop data available for this race"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/circuits/{circuit_id}/history": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "Get circuit historical stats",
+        "description": "Get historical statistics for a circuit.\n\nIncludes total races held, first/last race year, and top 5 most successful\ndrivers by wins at this circuit.",
+        "operationId": "get_circuit_history_api_v1_analytics_circuits__circuit_id__history_get",
+        "parameters": [
+          {
+            "name": "circuit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Circuit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitHistoryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No races found for this circuit",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "No races found for this circuit"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/win-probability": {
+      "get": {
+        "tags": [
+          "Advanced Analytics"
+        ],
+        "summary": "Predict win probability",
+        "description": "Predict a driver's win probability at a specific circuit based on historical data.\n\nCombines multiple factors:\n- Historical win rate at this circuit\n- Recent form (last 5 races overall)\n- Circuit-specific finishing positions\n- Grid-to-finish conversion rate\n\nReturns a probability score (0-100%) with breakdown of contributing factors.",
+        "operationId": "get_win_probability_api_v1_analytics_win_probability_get",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Driver ID",
+              "title": "Driver Id"
+            },
+            "description": "Driver ID"
+          },
+          {
+            "name": "circuit_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Circuit ID",
+              "title": "Circuit Id"
+            },
+            "description": "Circuit ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WinProbabilityResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Driver or circuit not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Driver not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/drivers/{driver_id}/performance-summary": {
+      "get": {
+        "tags": [
+          "Advanced Analytics"
+        ],
+        "summary": "Get multi-dimensional performance rating",
+        "description": "Generate a comprehensive multi-dimensional performance summary for a driver.\n\nAnalyses qualifying pace, race pace, consistency, overtaking ability,\nand pit stop efficiency to produce an overall rating out of 100.",
+        "operationId": "get_performance_summary_api_v1_analytics_drivers__driver_id__performance_summary_get",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Driver Id"
+            }
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by season (default: all-time)",
+              "title": "Season"
+            },
+            "description": "Filter by season (default: all-time)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceSummaryResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Driver not found or no data",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "No data found for this driver"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/teammate-battle": {
+      "get": {
+        "tags": [
+          "Advanced Analytics"
+        ],
+        "summary": "Compare driver vs teammate(s)",
+        "description": "Head-to-head comparison between a driver and their teammate(s) in a specific season.\n\nCompares qualifying positions, race results, and points scored\nin races where both drivers participated.",
+        "operationId": "get_teammate_battle_api_v1_analytics_teammate_battle_get",
+        "parameters": [
+          {
+            "name": "driver_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Driver ID",
+              "title": "Driver Id"
+            },
+            "description": "Driver ID"
+          },
+          {
+            "name": "season",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "Season year",
+              "title": "Season"
+            },
+            "description": "Season year"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeammateBattleResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Driver not found or no data for season",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "No data for this driver in 2024"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/analytics/leaderboard": {
+      "get": {
+        "tags": [
+          "Advanced Analytics"
+        ],
+        "summary": "Get driver leaderboard",
+        "description": "Dynamic leaderboard that ranks drivers by various metrics.\n\nSupports filtering by season and ranking by total points, wins, podiums, or win rate.",
+        "operationId": "get_leaderboard_api_v1_analytics_leaderboard_get",
+        "parameters": [
+          {
+            "name": "season",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Season year (default: all-time)",
+              "title": "Season"
+            },
+            "description": "Season year (default: all-time)"
+          },
+          {
+            "name": "metric",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Ranking metric: 'points', 'wins', 'podiums', 'win_rate'",
+              "default": "points",
+              "title": "Metric"
+            },
+            "description": "Ranking metric: 'points', 'wins', 'podiums', 'win_rate'"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Number of drivers to return",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Number of drivers to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaderboardResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid metric or parameter"
+          }
+        }
+      }
+    },
+    "/api/v1/circuits/": {
+      "get": {
+        "tags": [
+          "Circuits"
+        ],
+        "summary": "List circuits with stats",
+        "description": "Get a paginated list of circuits with optional filters and sorting.",
+        "operationId": "get_circuits_api_v1_circuits__get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by country",
+              "title": "Country"
+            },
+            "description": "Filter by country"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search by circuit name or location",
+              "title": "Search"
+            },
+            "description": "Search by circuit name or location"
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sort by: 'name' (alphabetical), 'country', 'most_races' (total races held), 'recent' (most recently used)",
+              "default": "name",
+              "title": "Sort By"
+            },
+            "description": "Sort by: 'name' (alphabetical), 'country', 'most_races' (total races held), 'recent' (most recently used)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CircuitListResponse"
+                  },
+                  "title": "Response Get Circuits Api V1 Circuits  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Circuits"
+        ],
+        "summary": "Create a new circuit",
+        "description": "Create a new circuit (requires authentication).",
+        "operationId": "create_circuit_api_v1_circuits__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircuitCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "409": {
+            "description": "Circuit ref already exists",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Circuit with ref 'silverstone' already exists"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/circuits/{circuit_id}": {
+      "get": {
+        "tags": [
+          "Circuits"
+        ],
+        "summary": "Get circuit detail with race history",
+        "description": "Get a single circuit by ID with recent race history.\n\nReturns circuit details plus the 5 most recent races held at this circuit,\nincluding the winner of each race.",
+        "operationId": "get_circuit_api_v1_circuits__circuit_id__get",
+        "parameters": [
+          {
+            "name": "circuit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Circuit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Circuit not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Circuit not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Circuits"
+        ],
+        "summary": "Update a circuit",
+        "description": "Update a circuit (requires authentication).",
+        "operationId": "update_circuit_api_v1_circuits__circuit_id__put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "circuit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Circuit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CircuitUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CircuitResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields to update"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Circuit not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Circuits"
+        ],
+        "summary": "Delete a circuit",
+        "description": "Delete a circuit (requires admin privileges).",
+        "operationId": "delete_circuit_api_v1_circuits__circuit_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "circuit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Circuit Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Admin privileges required"
+          },
+          "404": {
+            "description": "Circuit not found"
+          },
+          "409": {
+            "description": "Cannot delete: associated races exist",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Cannot delete circuit: 59 races are associated with it. Remove associated races first."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/constructors/": {
+      "get": {
+        "tags": [
+          "Constructors"
+        ],
+        "summary": "List constructors with stats",
+        "description": "Get a paginated list of constructors with optional filters and sorting.",
+        "operationId": "get_constructors_api_v1_constructors__get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Per Page"
+            },
+            "description": "Items per page"
+          },
+          {
+            "name": "nationality",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by nationality",
+              "title": "Nationality"
+            },
+            "description": "Filter by nationality"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search by constructor name or ref",
+              "title": "Search"
+            },
+            "description": "Search by constructor name or ref"
+          },
+          {
+            "name": "sort_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Sort by: 'name' (alphabetical), 'nationality', 'total_points' (all-time points), 'wins' (total wins), 'recent' (most recently active)",
+              "default": "name",
+              "title": "Sort By"
+            },
+            "description": "Sort by: 'name' (alphabetical), 'nationality', 'total_points' (all-time points), 'wins' (total wins), 'recent' (most recently active)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConstructorListResponse"
+                  },
+                  "title": "Response Get Constructors Api V1 Constructors  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Constructors"
+        ],
+        "summary": "Create a new constructor",
+        "description": "Create a new constructor (requires authentication).",
+        "operationId": "create_constructor_api_v1_constructors__post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConstructorCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConstructorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "409": {
+            "description": "Constructor ref already exists",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Constructor with ref 'mercedes' already exists"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/constructors/{constructor_id}": {
+      "get": {
+        "tags": [
+          "Constructors"
+        ],
+        "summary": "Get constructor detail with career summary",
+        "description": "Get a single constructor by ID with career summary and notable drivers.\n\nReturns constructor details plus all-time stats (total races, wins, points)\nand the top 5 highest-scoring drivers who raced for this team.",
+        "operationId": "get_constructor_api_v1_constructors__constructor_id__get",
+        "parameters": [
+          {
+            "name": "constructor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Constructor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConstructorDetailResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Constructor not found",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Constructor not found"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Constructors"
+        ],
+        "summary": "Update a constructor",
+        "description": "Update a constructor (requires authentication).",
+        "operationId": "update_constructor_api_v1_constructors__constructor_id__put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "constructor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Constructor Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConstructorUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConstructorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No fields to update"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "404": {
+            "description": "Constructor not found"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Constructors"
+        ],
+        "summary": "Delete a constructor",
+        "description": "Delete a constructor (requires admin privileges).",
+        "operationId": "delete_constructor_api_v1_constructors__constructor_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "constructor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Constructor Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required"
+          },
+          "403": {
+            "description": "Admin privileges required"
+          },
+          "404": {
+            "description": "Constructor not found"
+          },
+          "409": {
+            "description": "Cannot delete: associated results exist",
+            "content": {
+              "application/json": {
+                "example": {
+                  "detail": "Cannot delete constructor: 268 race results are associated with it. Remove associated results first."
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "Root",
+        "operationId": "root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "Health Check",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BattleScore": {
+        "properties": {
+          "driver_wins": {
+            "type": "integer",
+            "title": "Driver Wins",
+            "description": "Times the driver finished ahead",
+            "examples": [
+              12
+            ]
+          },
+          "teammate_wins": {
+            "type": "integer",
+            "title": "Teammate Wins",
+            "description": "Times the teammate finished ahead",
+            "examples": [
+              8
+            ]
+          },
+          "winner": {
+            "type": "string",
+            "title": "Winner",
+            "description": "Name of the winner or 'Tied'",
+            "examples": [
+              "Hamilton"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_wins",
+          "teammate_wins",
+          "winner"
+        ],
+        "title": "BattleScore",
+        "description": "Head-to-head qualifying or race battle result."
+      },
+      "Body_login_api_v1_auth_login_post": {
+        "properties": {
+          "grant_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "password"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Type"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": ""
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "Body_login_api_v1_auth_login_post"
+      },
+      "CareerBaselineFactor": {
+        "properties": {
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Factor weight",
+            "examples": [
+              "15%"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Factor score (0-100)",
+            "examples": [
+              30.3
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/CareerBaselineFactorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weight",
+          "score",
+          "detail"
+        ],
+        "title": "CareerBaselineFactor",
+        "description": "Career baseline weighted factor (15%)."
+      },
+      "CareerBaselineFactorDetail": {
+        "properties": {
+          "total_races": {
+            "type": "integer",
+            "title": "Total Races",
+            "description": "Total career races",
+            "examples": [
+              340
+            ]
+          },
+          "total_wins": {
+            "type": "integer",
+            "title": "Total Wins",
+            "description": "Total career wins",
+            "examples": [
+              103
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_races",
+          "total_wins"
+        ],
+        "title": "CareerBaselineFactorDetail",
+        "description": "Detail for career baseline factor."
+      },
+      "CareerStatistics": {
+        "properties": {
+          "total_races": {
+            "type": "integer",
+            "title": "Total Races",
+            "description": "Total race entries",
+            "examples": [
+              340
+            ]
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "description": "Total wins",
+            "examples": [
+              103
+            ]
+          },
+          "podiums": {
+            "type": "integer",
+            "title": "Podiums",
+            "description": "Total podium finishes (top 3)",
+            "examples": [
+              197
+            ]
+          },
+          "pole_positions": {
+            "type": "integer",
+            "title": "Pole Positions",
+            "description": "Total pole positions",
+            "examples": [
+              104
+            ]
+          },
+          "total_points": {
+            "type": "number",
+            "title": "Total Points",
+            "description": "Total career points",
+            "examples": [
+              4639.5
+            ]
+          },
+          "dnfs": {
+            "type": "integer",
+            "title": "Dnfs",
+            "description": "Did Not Finish count",
+            "examples": [
+              30
+            ]
+          },
+          "best_finish": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Finish",
+            "description": "Best finishing position",
+            "examples": [
+              1
+            ]
+          },
+          "win_rate": {
+            "type": "number",
+            "title": "Win Rate",
+            "description": "Win percentage",
+            "examples": [
+              30.29
+            ]
+          },
+          "podium_rate": {
+            "type": "number",
+            "title": "Podium Rate",
+            "description": "Podium percentage",
+            "examples": [
+              57.94
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_races",
+          "wins",
+          "podiums",
+          "pole_positions",
+          "total_points",
+          "dnfs",
+          "win_rate",
+          "podium_rate"
+        ],
+        "title": "CareerStatistics",
+        "description": "Comprehensive career statistics."
+      },
+      "CareerStatsResponse": {
+        "properties": {
+          "driver": {
+            "$ref": "#/components/schemas/DriverCareerInfo",
+            "description": "Driver identification"
+          },
+          "career": {
+            "$ref": "#/components/schemas/CareerStatistics",
+            "description": "Career statistics"
+          },
+          "teams": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Teams",
+            "description": "Constructors driven for",
+            "examples": [
+              [
+                "McLaren",
+                "Mercedes",
+                "Ferrari"
+              ]
+            ]
+          },
+          "seasons": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Seasons",
+            "description": "Active seasons list"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "career",
+          "teams",
+          "seasons"
+        ],
+        "title": "CareerStatsResponse",
+        "description": "Full career statistics for a driver."
+      },
+      "CircuitCreate": {
+        "properties": {
+          "circuit_ref": {
+            "type": "string",
+            "title": "Circuit Ref",
+            "description": "Unique circuit reference",
+            "examples": [
+              "silverstone"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Official circuit name",
+            "examples": [
+              "Silverstone Circuit"
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "City or locality",
+            "examples": [
+              "Silverstone"
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country",
+            "description": "Country",
+            "examples": [
+              "UK"
+            ]
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat",
+            "description": "Latitude coordinate",
+            "examples": [
+              52.0786
+            ]
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng",
+            "description": "Longitude coordinate",
+            "examples": [
+              -1.01694
+            ]
+          },
+          "alt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt",
+            "description": "Altitude in meters above sea level",
+            "examples": [
+              153.0
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Silverstone_Circuit"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "circuit_ref",
+          "name"
+        ],
+        "title": "CircuitCreate",
+        "example": {
+          "alt": 153.0,
+          "circuit_ref": "silverstone",
+          "country": "UK",
+          "lat": 52.0786,
+          "lng": -1.01694,
+          "location": "Silverstone",
+          "name": "Silverstone Circuit",
+          "url": "http://en.wikipedia.org/wiki/Silverstone_Circuit"
+        }
+      },
+      "CircuitDetailResponse": {
+        "properties": {
+          "circuit_id": {
+            "type": "integer",
+            "title": "Circuit Id",
+            "description": "Circuit ID",
+            "examples": [
+              9
+            ]
+          },
+          "circuit_ref": {
+            "type": "string",
+            "title": "Circuit Ref",
+            "description": "Circuit reference",
+            "examples": [
+              "silverstone"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Circuit name",
+            "examples": [
+              "Silverstone Circuit"
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "City/location",
+            "examples": [
+              "Silverstone"
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country",
+            "description": "Country",
+            "examples": [
+              "UK"
+            ]
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat",
+            "description": "Latitude",
+            "examples": [
+              52.0786
+            ]
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng",
+            "description": "Longitude",
+            "examples": [
+              -1.01694
+            ]
+          },
+          "alt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt",
+            "description": "Altitude in meters",
+            "examples": [
+              153.0
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL"
+          },
+          "total_races_held": {
+            "type": "integer",
+            "title": "Total Races Held",
+            "description": "Total races held at this circuit",
+            "examples": [
+              59
+            ]
+          },
+          "recent_races": {
+            "items": {
+              "$ref": "#/components/schemas/CircuitRaceEntry"
+            },
+            "type": "array",
+            "title": "Recent Races",
+            "description": "5 most recent races with winners"
+          }
+        },
+        "type": "object",
+        "required": [
+          "circuit_id",
+          "circuit_ref",
+          "name",
+          "total_races_held",
+          "recent_races"
+        ],
+        "title": "CircuitDetailResponse",
+        "description": "Circuit details with race history and aggregated stats."
+      },
+      "CircuitHistoryFactor": {
+        "properties": {
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Factor weight",
+            "examples": [
+              "35%"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Factor score (0-100)",
+            "examples": [
+              53.3
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/CircuitHistoryFactorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weight",
+          "score",
+          "detail"
+        ],
+        "title": "CircuitHistoryFactor",
+        "description": "Circuit history weighted factor (35%)."
+      },
+      "CircuitHistoryFactorDetail": {
+        "properties": {
+          "races_at_circuit": {
+            "type": "integer",
+            "title": "Races At Circuit",
+            "description": "Total races at this circuit",
+            "examples": [
+              15
+            ]
+          },
+          "wins_at_circuit": {
+            "type": "integer",
+            "title": "Wins At Circuit",
+            "description": "Wins at this circuit",
+            "examples": [
+              8
+            ]
+          },
+          "podiums_at_circuit": {
+            "type": "integer",
+            "title": "Podiums At Circuit",
+            "description": "Podiums at this circuit",
+            "examples": [
+              12
+            ]
+          },
+          "avg_finish_at_circuit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Finish At Circuit",
+            "description": "Average finish position here",
+            "examples": [
+              2.3
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "races_at_circuit",
+          "wins_at_circuit",
+          "podiums_at_circuit"
+        ],
+        "title": "CircuitHistoryFactorDetail",
+        "description": "Detail for circuit history factor."
+      },
+      "CircuitHistoryInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Circuit name",
+            "examples": [
+              "Silverstone Circuit"
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "Location",
+            "examples": [
+              "Silverstone"
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country",
+            "description": "Country",
+            "examples": [
+              "UK"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CircuitHistoryInfo",
+        "description": "Basic circuit identification for history response."
+      },
+      "CircuitHistoryResponse": {
+        "properties": {
+          "circuit": {
+            "$ref": "#/components/schemas/CircuitHistoryInfo",
+            "description": "Circuit information"
+          },
+          "statistics": {
+            "$ref": "#/components/schemas/CircuitHistoryStats",
+            "description": "Historical statistics"
+          },
+          "most_successful_drivers": {
+            "items": {
+              "$ref": "#/components/schemas/CircuitWinnerEntry"
+            },
+            "type": "array",
+            "title": "Most Successful Drivers",
+            "description": "Top 5 winningest drivers at this circuit"
+          }
+        },
+        "type": "object",
+        "required": [
+          "circuit",
+          "statistics",
+          "most_successful_drivers"
+        ],
+        "title": "CircuitHistoryResponse",
+        "description": "Historical statistics and most successful drivers at a circuit."
+      },
+      "CircuitHistoryStats": {
+        "properties": {
+          "total_races": {
+            "type": "integer",
+            "title": "Total Races",
+            "description": "Total races held",
+            "examples": [
+              59
+            ]
+          },
+          "first_race_year": {
+            "type": "integer",
+            "title": "First Race Year",
+            "description": "Year of first race",
+            "examples": [
+              1950
+            ]
+          },
+          "last_race_year": {
+            "type": "integer",
+            "title": "Last Race Year",
+            "description": "Year of most recent race",
+            "examples": [
+              2024
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_races",
+          "first_race_year",
+          "last_race_year"
+        ],
+        "title": "CircuitHistoryStats",
+        "description": "Historical statistics for a circuit."
+      },
+      "CircuitListResponse": {
+        "properties": {
+          "circuit_ref": {
+            "type": "string",
+            "title": "Circuit Ref",
+            "description": "Unique circuit reference",
+            "examples": [
+              "silverstone"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Official circuit name",
+            "examples": [
+              "Silverstone Circuit"
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "City or locality",
+            "examples": [
+              "Silverstone"
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country",
+            "description": "Country",
+            "examples": [
+              "UK"
+            ]
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat",
+            "description": "Latitude coordinate",
+            "examples": [
+              52.0786
+            ]
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng",
+            "description": "Longitude coordinate",
+            "examples": [
+              -1.01694
+            ]
+          },
+          "alt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt",
+            "description": "Altitude in meters above sea level",
+            "examples": [
+              153.0
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Silverstone_Circuit"
+            ]
+          },
+          "circuit_id": {
+            "type": "integer",
+            "title": "Circuit Id",
+            "description": "Unique circuit ID",
+            "examples": [
+              9
+            ]
+          },
+          "total_races": {
+            "type": "integer",
+            "title": "Total Races",
+            "description": "Total number of races held at this circuit",
+            "examples": [
+              59
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "circuit_ref",
+          "name",
+          "circuit_id",
+          "total_races"
+        ],
+        "title": "CircuitListResponse"
+      },
+      "CircuitRaceEntry": {
+        "properties": {
+          "race_id": {
+            "type": "integer",
+            "title": "Race Id",
+            "description": "Race ID",
+            "examples": [
+              1100
+            ]
+          },
+          "year": {
+            "type": "integer",
+            "title": "Year",
+            "description": "Season year",
+            "examples": [
+              2024
+            ]
+          },
+          "round": {
+            "type": "integer",
+            "title": "Round",
+            "description": "Round number",
+            "examples": [
+              12
+            ]
+          },
+          "race_name": {
+            "type": "string",
+            "title": "Race Name",
+            "description": "Grand Prix name",
+            "examples": [
+              "British Grand Prix"
+            ]
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date",
+            "description": "Race date (YYYY-MM-DD)",
+            "examples": [
+              "2024-07-07"
+            ]
+          },
+          "winner": {
+            "type": "string",
+            "title": "Winner",
+            "description": "Race winner full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "race_id",
+          "year",
+          "round",
+          "race_name",
+          "winner"
+        ],
+        "title": "CircuitRaceEntry",
+        "description": "A recent race held at a circuit, including the winner."
+      },
+      "CircuitResponse": {
+        "properties": {
+          "circuit_ref": {
+            "type": "string",
+            "title": "Circuit Ref",
+            "description": "Unique circuit reference",
+            "examples": [
+              "silverstone"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Official circuit name",
+            "examples": [
+              "Silverstone Circuit"
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "City or locality",
+            "examples": [
+              "Silverstone"
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country",
+            "description": "Country",
+            "examples": [
+              "UK"
+            ]
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat",
+            "description": "Latitude coordinate",
+            "examples": [
+              52.0786
+            ]
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng",
+            "description": "Longitude coordinate",
+            "examples": [
+              -1.01694
+            ]
+          },
+          "alt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt",
+            "description": "Altitude in meters above sea level",
+            "examples": [
+              153.0
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Silverstone_Circuit"
+            ]
+          },
+          "circuit_id": {
+            "type": "integer",
+            "title": "Circuit Id",
+            "description": "Unique circuit ID",
+            "examples": [
+              9
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "circuit_ref",
+          "name",
+          "circuit_id"
+        ],
+        "title": "CircuitResponse"
+      },
+      "CircuitUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Official circuit name",
+            "examples": [
+              "Silverstone Circuit"
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location",
+            "description": "City or locality",
+            "examples": [
+              "Silverstone"
+            ]
+          },
+          "country": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country",
+            "description": "Country",
+            "examples": [
+              "UK"
+            ]
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat",
+            "description": "Latitude coordinate",
+            "examples": [
+              52.0786
+            ]
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng",
+            "description": "Longitude coordinate",
+            "examples": [
+              -1.01694
+            ]
+          },
+          "alt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt",
+            "description": "Altitude in meters",
+            "examples": [
+              153.0
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL"
+          }
+        },
+        "type": "object",
+        "title": "CircuitUpdate",
+        "example": {
+          "country": "UK",
+          "name": "Silverstone Circuit"
+        }
+      },
+      "CircuitWinnerEntry": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "description": "Wins at this circuit",
+            "examples": [
+              8
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "wins"
+        ],
+        "title": "CircuitWinnerEntry",
+        "description": "A top-winning driver at a specific circuit."
+      },
+      "ConsistencyDetail": {
+        "properties": {
+          "finish_rate": {
+            "type": "string",
+            "title": "Finish Rate",
+            "description": "Race completion percentage",
+            "examples": [
+              "91.2%"
+            ]
+          },
+          "points_finish_rate": {
+            "type": "string",
+            "title": "Points Finish Rate",
+            "description": "Points-scoring race percentage",
+            "examples": [
+              "78.5%"
+            ]
+          },
+          "dnfs": {
+            "type": "integer",
+            "title": "Dnfs",
+            "description": "Total DNFs",
+            "examples": [
+              30
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "finish_rate",
+          "points_finish_rate",
+          "dnfs"
+        ],
+        "title": "ConsistencyDetail",
+        "description": "Consistency dimension detail."
+      },
+      "ConsistencyDimension": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Dimension score (0-100)",
+            "examples": [
+              78.9
+            ]
+          },
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Weight in overall rating",
+            "examples": [
+              "20%"
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/ConsistencyDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "weight",
+          "detail"
+        ],
+        "title": "ConsistencyDimension",
+        "description": "Consistency performance dimension (20%)."
+      },
+      "ConstructorCareerSummary": {
+        "properties": {
+          "total_entries": {
+            "type": "integer",
+            "title": "Total Entries",
+            "description": "Total race entries",
+            "examples": [
+              268
+            ]
+          },
+          "total_points": {
+            "type": "number",
+            "title": "Total Points",
+            "description": "All-time total points",
+            "examples": [
+              7005.5
+            ]
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "description": "Total victories",
+            "examples": [
+              125
+            ]
+          },
+          "podiums": {
+            "type": "integer",
+            "title": "Podiums",
+            "description": "Total podium finishes",
+            "examples": [
+              275
+            ]
+          },
+          "first_season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Season",
+            "description": "First season competed",
+            "examples": [
+              2010
+            ]
+          },
+          "last_season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Season",
+            "description": "Most recent season",
+            "examples": [
+              2024
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_entries",
+          "total_points",
+          "wins",
+          "podiums"
+        ],
+        "title": "ConstructorCareerSummary",
+        "description": "Aggregated career statistics for a constructor."
+      },
+      "ConstructorCreate": {
+        "properties": {
+          "constructor_ref": {
+            "type": "string",
+            "title": "Constructor Ref",
+            "description": "Unique constructor reference",
+            "examples": [
+              "mercedes"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Constructor team name",
+            "examples": [
+              "Mercedes"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Constructor nationality",
+            "examples": [
+              "German"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Mercedes-Benz_in_Formula_One"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "constructor_ref",
+          "name"
+        ],
+        "title": "ConstructorCreate",
+        "example": {
+          "constructor_ref": "mercedes",
+          "name": "Mercedes",
+          "nationality": "German",
+          "url": "http://en.wikipedia.org/wiki/Mercedes-Benz_in_Formula_One"
+        }
+      },
+      "ConstructorDetailResponse": {
+        "properties": {
+          "constructor_id": {
+            "type": "integer",
+            "title": "Constructor Id",
+            "description": "Constructor ID",
+            "examples": [
+              1
+            ]
+          },
+          "constructor_ref": {
+            "type": "string",
+            "title": "Constructor Ref",
+            "description": "Constructor reference",
+            "examples": [
+              "mercedes"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Constructor name",
+            "examples": [
+              "Mercedes"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Nationality",
+            "examples": [
+              "German"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL"
+          },
+          "career_summary": {
+            "$ref": "#/components/schemas/ConstructorCareerSummary",
+            "description": "Aggregated career statistics"
+          },
+          "top_drivers": {
+            "items": {
+              "$ref": "#/components/schemas/ConstructorTopDriver"
+            },
+            "type": "array",
+            "title": "Top Drivers",
+            "description": "Top 5 drivers by points for this team"
+          }
+        },
+        "type": "object",
+        "required": [
+          "constructor_id",
+          "constructor_ref",
+          "name",
+          "career_summary",
+          "top_drivers"
+        ],
+        "title": "ConstructorDetailResponse",
+        "description": "Constructor details with career summary and notable drivers."
+      },
+      "ConstructorListResponse": {
+        "properties": {
+          "constructor_ref": {
+            "type": "string",
+            "title": "Constructor Ref",
+            "description": "Unique constructor reference",
+            "examples": [
+              "mercedes"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Constructor team name",
+            "examples": [
+              "Mercedes"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Constructor nationality",
+            "examples": [
+              "German"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Mercedes-Benz_in_Formula_One"
+            ]
+          },
+          "constructor_id": {
+            "type": "integer",
+            "title": "Constructor Id",
+            "description": "Unique constructor ID",
+            "examples": [
+              1
+            ]
+          },
+          "total_points": {
+            "type": "number",
+            "title": "Total Points",
+            "description": "All-time total championship points",
+            "examples": [
+              7005.5
+            ]
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "description": "Total race victories",
+            "examples": [
+              125
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "constructor_ref",
+          "name",
+          "constructor_id",
+          "total_points",
+          "wins"
+        ],
+        "title": "ConstructorListResponse"
+      },
+      "ConstructorResponse": {
+        "properties": {
+          "constructor_ref": {
+            "type": "string",
+            "title": "Constructor Ref",
+            "description": "Unique constructor reference",
+            "examples": [
+              "mercedes"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Constructor team name",
+            "examples": [
+              "Mercedes"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Constructor nationality",
+            "examples": [
+              "German"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Mercedes-Benz_in_Formula_One"
+            ]
+          },
+          "constructor_id": {
+            "type": "integer",
+            "title": "Constructor Id",
+            "description": "Unique constructor ID",
+            "examples": [
+              1
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "constructor_ref",
+          "name",
+          "constructor_id"
+        ],
+        "title": "ConstructorResponse"
+      },
+      "ConstructorTopDriver": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "races_for_team": {
+            "type": "integer",
+            "title": "Races For Team",
+            "description": "Races driven for this team",
+            "examples": [
+              192
+            ]
+          },
+          "points_for_team": {
+            "type": "number",
+            "title": "Points For Team",
+            "description": "Points scored for this team",
+            "examples": [
+              2560.5
+            ]
+          },
+          "wins_for_team": {
+            "type": "integer",
+            "title": "Wins For Team",
+            "description": "Wins with this team",
+            "examples": [
+              84
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "races_for_team",
+          "points_for_team",
+          "wins_for_team"
+        ],
+        "title": "ConstructorTopDriver",
+        "description": "A top-performing driver for a constructor."
+      },
+      "ConstructorUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "Constructor team name",
+            "examples": [
+              "Mercedes"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Constructor nationality",
+            "examples": [
+              "German"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL"
+          }
+        },
+        "type": "object",
+        "title": "ConstructorUpdate",
+        "example": {
+          "name": "Mercedes AMG Petronas",
+          "nationality": "German"
+        }
+      },
+      "DriverCareerInfo": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "Driver ID",
+            "examples": [
+              1
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Nationality",
+            "examples": [
+              "British"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "DriverCareerInfo",
+        "description": "Basic driver identification."
+      },
+      "DriverCompareEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "stats": {
+            "$ref": "#/components/schemas/DriverCompareStats"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "stats"
+        ],
+        "title": "DriverCompareEntry",
+        "description": "A driver entry in a head-to-head comparison."
+      },
+      "DriverCompareResponse": {
+        "properties": {
+          "driver_1": {
+            "$ref": "#/components/schemas/DriverCompareEntry"
+          },
+          "driver_2": {
+            "$ref": "#/components/schemas/DriverCompareEntry"
+          },
+          "head_to_head": {
+            "$ref": "#/components/schemas/HeadToHeadResult"
+          },
+          "season_filter": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Season Filter",
+            "description": "Applied season filter",
+            "examples": [
+              2020
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_1",
+          "driver_2",
+          "head_to_head"
+        ],
+        "title": "DriverCompareResponse",
+        "description": "Head-to-head comparison between two drivers."
+      },
+      "DriverCompareStats": {
+        "properties": {
+          "total_races": {
+            "type": "integer",
+            "title": "Total Races",
+            "description": "Total races",
+            "examples": [
+              340
+            ]
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "description": "Total wins",
+            "examples": [
+              103
+            ]
+          },
+          "podiums": {
+            "type": "integer",
+            "title": "Podiums",
+            "description": "Total podiums",
+            "examples": [
+              197
+            ]
+          },
+          "total_points": {
+            "type": "number",
+            "title": "Total Points",
+            "description": "Total points",
+            "examples": [
+              4639.5
+            ]
+          },
+          "dnfs": {
+            "type": "integer",
+            "title": "Dnfs",
+            "description": "DNF count",
+            "examples": [
+              30
+            ]
+          },
+          "avg_finish": {
+            "type": "number",
+            "title": "Avg Finish",
+            "description": "Average finishing position",
+            "examples": [
+              4.52
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_races",
+          "wins",
+          "podiums",
+          "total_points",
+          "dnfs",
+          "avg_finish"
+        ],
+        "title": "DriverCompareStats",
+        "description": "Statistics for a driver in a comparison."
+      },
+      "DriverCreate": {
+        "properties": {
+          "driver_ref": {
+            "type": "string",
+            "title": "Driver Ref",
+            "description": "Unique driver reference identifier",
+            "examples": [
+              "hamilton"
+            ]
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number",
+            "description": "Permanent racing number",
+            "examples": [
+              44
+            ]
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Three-letter driver code",
+            "examples": [
+              "HAM"
+            ]
+          },
+          "forename": {
+            "type": "string",
+            "title": "Forename",
+            "description": "Driver first name",
+            "examples": [
+              "Lewis"
+            ]
+          },
+          "surname": {
+            "type": "string",
+            "title": "Surname",
+            "description": "Driver last name",
+            "examples": [
+              "Hamilton"
+            ]
+          },
+          "dob": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dob",
+            "description": "Date of birth (YYYY-MM-DD)",
+            "examples": [
+              "1985-01-07"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Driver nationality",
+            "examples": [
+              "British"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Lewis_Hamilton"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_ref",
+          "forename",
+          "surname"
+        ],
+        "title": "DriverCreate",
+        "example": {
+          "code": "HAM",
+          "dob": "1985-01-07",
+          "driver_ref": "hamilton",
+          "forename": "Lewis",
+          "nationality": "British",
+          "number": 44,
+          "surname": "Hamilton",
+          "url": "http://en.wikipedia.org/wiki/Lewis_Hamilton"
+        }
+      },
+      "DriverPitStopAnalysis": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "grid_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grid Position",
+            "description": "Starting grid position",
+            "examples": [
+              1
+            ]
+          },
+          "final_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Position",
+            "description": "Final race position",
+            "examples": [
+              1
+            ]
+          },
+          "num_stops": {
+            "type": "integer",
+            "title": "Num Stops",
+            "description": "Number of pit stops",
+            "examples": [
+              2
+            ]
+          },
+          "total_pit_time_ms": {
+            "type": "integer",
+            "title": "Total Pit Time Ms",
+            "description": "Total time spent in pits (ms)",
+            "examples": [
+              46280
+            ]
+          },
+          "stops_detail": {
+            "items": {
+              "$ref": "#/components/schemas/PitStopDetailEntry"
+            },
+            "type": "array",
+            "title": "Stops Detail",
+            "description": "Individual pit stop details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "num_stops",
+          "total_pit_time_ms",
+          "stops_detail"
+        ],
+        "title": "DriverPitStopAnalysis",
+        "description": "Pit stop data for a single driver in a race."
+      },
+      "DriverResponse": {
+        "properties": {
+          "driver_ref": {
+            "type": "string",
+            "title": "Driver Ref",
+            "description": "Unique driver reference identifier",
+            "examples": [
+              "hamilton"
+            ]
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number",
+            "description": "Permanent racing number",
+            "examples": [
+              44
+            ]
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Three-letter driver code",
+            "examples": [
+              "HAM"
+            ]
+          },
+          "forename": {
+            "type": "string",
+            "title": "Forename",
+            "description": "Driver first name",
+            "examples": [
+              "Lewis"
+            ]
+          },
+          "surname": {
+            "type": "string",
+            "title": "Surname",
+            "description": "Driver last name",
+            "examples": [
+              "Hamilton"
+            ]
+          },
+          "dob": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dob",
+            "description": "Date of birth (YYYY-MM-DD)",
+            "examples": [
+              "1985-01-07"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Driver nationality",
+            "examples": [
+              "British"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL",
+            "examples": [
+              "http://en.wikipedia.org/wiki/Lewis_Hamilton"
+            ]
+          },
+          "driver_id": {
+            "type": "integer",
+            "title": "Driver Id",
+            "description": "Unique driver ID",
+            "examples": [
+              1
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_ref",
+          "forename",
+          "surname",
+          "driver_id"
+        ],
+        "title": "DriverResponse"
+      },
+      "DriverUpdate": {
+        "properties": {
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number",
+            "description": "Permanent racing number",
+            "examples": [
+              44
+            ]
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Three-letter driver code",
+            "examples": [
+              "HAM"
+            ]
+          },
+          "forename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Forename",
+            "description": "Driver first name",
+            "examples": [
+              "Lewis"
+            ]
+          },
+          "surname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Surname",
+            "description": "Driver last name",
+            "examples": [
+              "Hamilton"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Driver nationality",
+            "examples": [
+              "British"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Wikipedia URL"
+          }
+        },
+        "type": "object",
+        "title": "DriverUpdate",
+        "example": {
+          "nationality": "British",
+          "number": 44
+        }
+      },
+      "GridConversionFactor": {
+        "properties": {
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Factor weight",
+            "examples": [
+              "20%"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Factor score (0-100)",
+            "examples": [
+              54.2
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/GridConversionFactorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weight",
+          "score",
+          "detail"
+        ],
+        "title": "GridConversionFactor",
+        "description": "Grid conversion weighted factor (20%)."
+      },
+      "GridConversionFactorDetail": {
+        "properties": {
+          "front_row_starts": {
+            "type": "integer",
+            "title": "Front Row Starts",
+            "description": "Times started from front row",
+            "examples": [
+              120
+            ]
+          },
+          "front_row_wins": {
+            "type": "integer",
+            "title": "Front Row Wins",
+            "description": "Wins from front row starts",
+            "examples": [
+              65
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "front_row_starts",
+          "front_row_wins"
+        ],
+        "title": "GridConversionFactorDetail",
+        "description": "Detail for grid conversion factor."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HeadToHeadResult": {
+        "properties": {
+          "common_races": {
+            "type": "integer",
+            "title": "Common Races",
+            "description": "Races both drivers entered",
+            "examples": [
+              200
+            ]
+          },
+          "driver_1_ahead": {
+            "type": "integer",
+            "title": "Driver 1 Ahead",
+            "description": "Races driver 1 finished ahead",
+            "examples": [
+              110
+            ]
+          },
+          "driver_2_ahead": {
+            "type": "integer",
+            "title": "Driver 2 Ahead",
+            "description": "Races driver 2 finished ahead",
+            "examples": [
+              85
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "common_races",
+          "driver_1_ahead",
+          "driver_2_ahead"
+        ],
+        "title": "HeadToHeadResult",
+        "description": "Head-to-head finishing results between two drivers."
+      },
+      "LeaderboardEntry": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank",
+            "description": "Position in leaderboard",
+            "examples": [
+              1
+            ]
+          },
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "nationality": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nationality",
+            "description": "Nationality",
+            "examples": [
+              "British"
+            ]
+          },
+          "races": {
+            "type": "integer",
+            "title": "Races",
+            "description": "Total races",
+            "examples": [
+              340
+            ]
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "description": "Total wins",
+            "examples": [
+              103
+            ]
+          },
+          "podiums": {
+            "type": "integer",
+            "title": "Podiums",
+            "description": "Total podiums",
+            "examples": [
+              197
+            ]
+          },
+          "total_points": {
+            "type": "number",
+            "title": "Total Points",
+            "description": "Total points scored",
+            "examples": [
+              4639.5
+            ]
+          },
+          "win_rate": {
+            "type": "string",
+            "title": "Win Rate",
+            "description": "Win percentage",
+            "examples": [
+              "30.3%"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "driver",
+          "races",
+          "wins",
+          "podiums",
+          "total_points",
+          "win_rate"
+        ],
+        "title": "LeaderboardEntry",
+        "description": "A single entry in the leaderboard."
+      },
+      "LeaderboardResponse": {
+        "properties": {
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Season",
+            "description": "Season year or 'all-time'",
+            "examples": [
+              "all-time"
+            ]
+          },
+          "metric": {
+            "type": "string",
+            "title": "Metric",
+            "description": "Ranking metric used",
+            "examples": [
+              "points"
+            ]
+          },
+          "total_drivers": {
+            "type": "integer",
+            "title": "Total Drivers",
+            "description": "Number of drivers returned",
+            "examples": [
+              20
+            ]
+          },
+          "leaderboard": {
+            "items": {
+              "$ref": "#/components/schemas/LeaderboardEntry"
+            },
+            "type": "array",
+            "title": "Leaderboard",
+            "description": "Ranked driver entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "season",
+          "metric",
+          "total_drivers",
+          "leaderboard"
+        ],
+        "title": "LeaderboardResponse",
+        "description": "Dynamic leaderboard ranking drivers by a chosen metric."
+      },
+      "OvertakingDetail": {
+        "properties": {
+          "avg_positions_gained": {
+            "type": "number",
+            "title": "Avg Positions Gained",
+            "description": "Average positions gained per race",
+            "examples": [
+              1.3
+            ]
+          },
+          "races_analysed": {
+            "type": "integer",
+            "title": "Races Analysed",
+            "description": "Number of races with valid grid/finish data",
+            "examples": [
+              310
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "avg_positions_gained",
+          "races_analysed"
+        ],
+        "title": "OvertakingDetail",
+        "description": "Overtaking ability dimension detail."
+      },
+      "OvertakingDimension": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Dimension score (0-100)",
+            "examples": [
+              65.4
+            ]
+          },
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Weight in overall rating",
+            "examples": [
+              "15%"
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/OvertakingDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "weight",
+          "detail"
+        ],
+        "title": "OvertakingDimension",
+        "description": "Overtaking ability performance dimension (15%)."
+      },
+      "PerformanceDimensions": {
+        "properties": {
+          "qualifying_pace": {
+            "$ref": "#/components/schemas/QualifyingPaceDimension",
+            "description": "Qualifying performance (25%)"
+          },
+          "race_pace": {
+            "$ref": "#/components/schemas/RacePaceDimension",
+            "description": "Race finishing ability (30%)"
+          },
+          "consistency": {
+            "$ref": "#/components/schemas/ConsistencyDimension",
+            "description": "Finish rate and points consistency (20%)"
+          },
+          "overtaking": {
+            "$ref": "#/components/schemas/OvertakingDimension",
+            "description": "Position gain ability (15%)"
+          },
+          "pit_stop_efficiency": {
+            "$ref": "#/components/schemas/PitStopEfficiencyDimension",
+            "description": "Pit stop time efficiency (10%)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "qualifying_pace",
+          "race_pace",
+          "consistency",
+          "overtaking",
+          "pit_stop_efficiency"
+        ],
+        "title": "PerformanceDimensions",
+        "description": "All five performance dimensions."
+      },
+      "PerformanceSummaryResponse": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "season": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Season",
+            "description": "Season year or 'all-time'",
+            "examples": [
+              2020
+            ]
+          },
+          "overall_rating": {
+            "type": "number",
+            "title": "Overall Rating",
+            "description": "Weighted overall rating (0-100)",
+            "examples": [
+              82.5
+            ]
+          },
+          "total_races": {
+            "type": "integer",
+            "title": "Total Races",
+            "description": "Races analysed",
+            "examples": [
+              17
+            ]
+          },
+          "dimensions": {
+            "$ref": "#/components/schemas/PerformanceDimensions",
+            "description": "Five performance dimensions with scores"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "season",
+          "overall_rating",
+          "total_races",
+          "dimensions"
+        ],
+        "title": "PerformanceSummaryResponse",
+        "description": "Multi-dimensional performance rating for a driver."
+      },
+      "PitStopAnalysisResponse": {
+        "properties": {
+          "race": {
+            "type": "string",
+            "title": "Race",
+            "description": "Race name",
+            "examples": [
+              "British Grand Prix"
+            ]
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season",
+            "description": "Season year",
+            "examples": [
+              2024
+            ]
+          },
+          "strategy_summary": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StrategyStats"
+            },
+            "type": "object",
+            "title": "Strategy Summary",
+            "description": "Summary by stop count (keys: '0_stop', '1_stop', '2_stop', etc.)"
+          },
+          "driver_details": {
+            "items": {
+              "$ref": "#/components/schemas/DriverPitStopAnalysis"
+            },
+            "type": "array",
+            "title": "Driver Details",
+            "description": "Per-driver pit stop analysis, sorted by finishing position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "race",
+          "season",
+          "strategy_summary",
+          "driver_details"
+        ],
+        "title": "PitStopAnalysisResponse",
+        "description": "Pit stop strategy analysis for a specific race."
+      },
+      "PitStopDetailEntry": {
+        "properties": {
+          "stop": {
+            "type": "integer",
+            "title": "Stop",
+            "description": "Stop number (1st, 2nd, etc.)",
+            "examples": [
+              1
+            ]
+          },
+          "lap": {
+            "type": "integer",
+            "title": "Lap",
+            "description": "Lap number of the stop",
+            "examples": [
+              18
+            ]
+          },
+          "duration": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration",
+            "description": "Pit stop duration as string",
+            "examples": [
+              "23.140"
+            ]
+          },
+          "milliseconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Milliseconds",
+            "description": "Duration in milliseconds",
+            "examples": [
+              23140
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "stop",
+          "lap"
+        ],
+        "title": "PitStopDetailEntry",
+        "description": "Individual pit stop record."
+      },
+      "PitStopEfficiencyDetail": {
+        "properties": {
+          "median_pit_time_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Pit Time Ms",
+            "description": "Median pit stop time in milliseconds",
+            "examples": [
+              24500
+            ]
+          },
+          "total_pit_stops": {
+            "type": "integer",
+            "title": "Total Pit Stops",
+            "description": "Total pit stops analysed",
+            "examples": [
+              580
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_pit_stops"
+        ],
+        "title": "PitStopEfficiencyDetail",
+        "description": "Pit stop efficiency dimension detail."
+      },
+      "PitStopEfficiencyDimension": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Dimension score (0-100)",
+            "examples": [
+              75.0
+            ]
+          },
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Weight in overall rating",
+            "examples": [
+              "10%"
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/PitStopEfficiencyDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "weight",
+          "detail"
+        ],
+        "title": "PitStopEfficiencyDimension",
+        "description": "Pit stop efficiency performance dimension (10%)."
+      },
+      "PointsBattleScore": {
+        "properties": {
+          "driver_points": {
+            "type": "number",
+            "title": "Driver Points",
+            "description": "Driver's total points",
+            "examples": [
+              347.0
+            ]
+          },
+          "teammate_points": {
+            "type": "number",
+            "title": "Teammate Points",
+            "description": "Teammate's total points",
+            "examples": [
+              230.5
+            ]
+          },
+          "winner": {
+            "type": "string",
+            "title": "Winner",
+            "description": "Points leader or 'Tied'",
+            "examples": [
+              "Hamilton"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver_points",
+          "teammate_points",
+          "winner"
+        ],
+        "title": "PointsBattleScore",
+        "description": "Points comparison between driver and teammate."
+      },
+      "QualifyingPaceDetail": {
+        "properties": {
+          "avg_qualifying_position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Qualifying Position",
+            "description": "Average qualifying position",
+            "examples": [
+              3.2
+            ]
+          },
+          "pole_positions": {
+            "type": "integer",
+            "title": "Pole Positions",
+            "description": "Total pole positions",
+            "examples": [
+              104
+            ]
+          },
+          "top_3_qualifying": {
+            "type": "integer",
+            "title": "Top 3 Qualifying",
+            "description": "Times qualified in top 3",
+            "examples": [
+              250
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "pole_positions",
+          "top_3_qualifying"
+        ],
+        "title": "QualifyingPaceDetail",
+        "description": "Qualifying pace dimension detail."
+      },
+      "QualifyingPaceDimension": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Dimension score (0-100)",
+            "examples": [
+              85.3
+            ]
+          },
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Weight in overall rating",
+            "examples": [
+              "25%"
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/QualifyingPaceDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "weight",
+          "detail"
+        ],
+        "title": "QualifyingPaceDimension",
+        "description": "Qualifying pace performance dimension (25%)."
+      },
+      "RacePaceDetail": {
+        "properties": {
+          "avg_finish_position": {
+            "type": "number",
+            "title": "Avg Finish Position",
+            "description": "Average finishing position",
+            "examples": [
+              4.5
+            ]
+          },
+          "wins": {
+            "type": "integer",
+            "title": "Wins",
+            "description": "Total wins",
+            "examples": [
+              103
+            ]
+          },
+          "podiums": {
+            "type": "integer",
+            "title": "Podiums",
+            "description": "Total podiums",
+            "examples": [
+              197
+            ]
+          },
+          "points_per_race": {
+            "type": "number",
+            "title": "Points Per Race",
+            "description": "Average points per race",
+            "examples": [
+              13.6
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "avg_finish_position",
+          "wins",
+          "podiums",
+          "points_per_race"
+        ],
+        "title": "RacePaceDetail",
+        "description": "Race pace dimension detail."
+      },
+      "RacePaceDimension": {
+        "properties": {
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Dimension score (0-100)",
+            "examples": [
+              81.6
+            ]
+          },
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Weight in overall rating",
+            "examples": [
+              "30%"
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RacePaceDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "weight",
+          "detail"
+        ],
+        "title": "RacePaceDimension",
+        "description": "Race pace performance dimension (30%)."
+      },
+      "RecentFormFactor": {
+        "properties": {
+          "weight": {
+            "type": "string",
+            "title": "Weight",
+            "description": "Factor weight",
+            "examples": [
+              "30%"
+            ]
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Factor score (0-100)",
+            "examples": [
+              72.1
+            ]
+          },
+          "detail": {
+            "$ref": "#/components/schemas/RecentFormFactorDetail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "weight",
+          "score",
+          "detail"
+        ],
+        "title": "RecentFormFactor",
+        "description": "Recent form weighted factor (30%)."
+      },
+      "RecentFormFactorDetail": {
+        "properties": {
+          "last_5_races_avg_finish": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last 5 Races Avg Finish",
+            "description": "Avg finish in last 5 races",
+            "examples": [
+              3.2
+            ]
+          },
+          "last_5_wins": {
+            "type": "integer",
+            "title": "Last 5 Wins",
+            "description": "Wins in last 5 races",
+            "examples": [
+              2
+            ]
+          },
+          "last_5_podiums": {
+            "type": "integer",
+            "title": "Last 5 Podiums",
+            "description": "Podiums in last 5 races",
+            "examples": [
+              4
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_5_wins",
+          "last_5_podiums"
+        ],
+        "title": "RecentFormFactorDetail",
+        "description": "Detail for recent form factor."
+      },
+      "RoundProgressEntry": {
+        "properties": {
+          "round": {
+            "type": "integer",
+            "title": "Round",
+            "description": "Round number",
+            "examples": [
+              1
+            ]
+          },
+          "race_name": {
+            "type": "string",
+            "title": "Race Name",
+            "description": "Grand Prix name",
+            "examples": [
+              "Bahrain Grand Prix"
+            ]
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position",
+            "description": "Finishing position",
+            "examples": [
+              1
+            ]
+          },
+          "points_scored": {
+            "type": "number",
+            "title": "Points Scored",
+            "description": "Points earned this round",
+            "examples": [
+              25.0
+            ]
+          },
+          "cumulative_points": {
+            "type": "number",
+            "title": "Cumulative Points",
+            "description": "Running total points",
+            "examples": [
+              25.0
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "round",
+          "race_name",
+          "points_scored",
+          "cumulative_points"
+        ],
+        "title": "RoundProgressEntry",
+        "description": "Single round in a season progression."
+      },
+      "SeasonProgressionResponse": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season",
+            "description": "Season year",
+            "examples": [
+              2020
+            ]
+          },
+          "total_points": {
+            "type": "number",
+            "title": "Total Points",
+            "description": "Total season points",
+            "examples": [
+              347.0
+            ]
+          },
+          "rounds": {
+            "items": {
+              "$ref": "#/components/schemas/RoundProgressEntry"
+            },
+            "type": "array",
+            "title": "Rounds",
+            "description": "Round-by-round progression data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "season",
+          "total_points",
+          "rounds"
+        ],
+        "title": "SeasonProgressionResponse",
+        "description": "A driver's round-by-round points accumulation across a season."
+      },
+      "StrategyStats": {
+        "properties": {
+          "drivers": {
+            "type": "integer",
+            "title": "Drivers",
+            "description": "Number of drivers using this strategy",
+            "examples": [
+              12
+            ]
+          },
+          "avg_finish_position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Finish Position",
+            "description": "Average finishing position",
+            "examples": [
+              6.5
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "drivers"
+        ],
+        "title": "StrategyStats",
+        "description": "Statistics for a pit stop strategy (e.g. 1-stop, 2-stop)."
+      },
+      "TeammateBattleEntry": {
+        "properties": {
+          "constructor": {
+            "type": "string",
+            "title": "Constructor",
+            "description": "Team name",
+            "examples": [
+              "Mercedes"
+            ]
+          },
+          "teammate": {
+            "type": "string",
+            "title": "Teammate",
+            "description": "Teammate full name",
+            "examples": [
+              "Valtteri Bottas"
+            ]
+          },
+          "common_races": {
+            "type": "integer",
+            "title": "Common Races",
+            "description": "Races both competed in",
+            "examples": [
+              20
+            ]
+          },
+          "qualifying": {
+            "$ref": "#/components/schemas/BattleScore",
+            "description": "Qualifying head-to-head"
+          },
+          "race": {
+            "$ref": "#/components/schemas/BattleScore",
+            "description": "Race finishing head-to-head"
+          },
+          "points": {
+            "$ref": "#/components/schemas/PointsBattleScore",
+            "description": "Points comparison"
+          }
+        },
+        "type": "object",
+        "required": [
+          "constructor",
+          "teammate",
+          "common_races",
+          "qualifying",
+          "race",
+          "points"
+        ],
+        "title": "TeammateBattleEntry",
+        "description": "Battle results against a single teammate."
+      },
+      "TeammateBattleResponse": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "season": {
+            "type": "integer",
+            "title": "Season",
+            "description": "Season year",
+            "examples": [
+              2020
+            ]
+          },
+          "battles": {
+            "items": {
+              "$ref": "#/components/schemas/TeammateBattleEntry"
+            },
+            "type": "array",
+            "title": "Battles",
+            "description": "Battle results (one entry per teammate)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "season",
+          "battles"
+        ],
+        "title": "TeammateBattleResponse",
+        "description": "Head-to-head comparison between a driver and their teammate(s) in a season."
+      },
+      "Token": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token",
+            "description": "JWT access token",
+            "examples": [
+              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            ]
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "description": "Token type",
+            "default": "bearer",
+            "examples": [
+              "bearer"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token"
+        ],
+        "title": "Token"
+      },
+      "UserCreate": {
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 3,
+            "title": "Username",
+            "description": "Unique username",
+            "examples": [
+              "lewis_h"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Email",
+            "description": "User email address",
+            "examples": [
+              "lewis@example.com"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "title": "Password",
+            "description": "Password (min 6 characters)",
+            "examples": [
+              "securePass123"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "username",
+          "email",
+          "password"
+        ],
+        "title": "UserCreate",
+        "example": {
+          "email": "lewis@example.com",
+          "password": "securePass123",
+          "username": "lewis_h"
+        }
+      },
+      "UserResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "User ID",
+            "examples": [
+              1
+            ]
+          },
+          "username": {
+            "type": "string",
+            "title": "Username",
+            "description": "Username",
+            "examples": [
+              "lewis_h"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "description": "Email address",
+            "examples": [
+              "lewis@example.com"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "description": "User role: 'user' or 'admin'",
+            "examples": [
+              "user"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "email",
+          "role"
+        ],
+        "title": "UserResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WinProbabilityFactors": {
+        "properties": {
+          "circuit_history": {
+            "$ref": "#/components/schemas/CircuitHistoryFactor",
+            "description": "Historical performance at this circuit (35%)"
+          },
+          "recent_form": {
+            "$ref": "#/components/schemas/RecentFormFactor",
+            "description": "Recent form from last 5 races (30%)"
+          },
+          "grid_conversion": {
+            "$ref": "#/components/schemas/GridConversionFactor",
+            "description": "Front row to win conversion rate (20%)"
+          },
+          "career_baseline": {
+            "$ref": "#/components/schemas/CareerBaselineFactor",
+            "description": "Overall career win rate (15%)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "circuit_history",
+          "recent_form",
+          "grid_conversion",
+          "career_baseline"
+        ],
+        "title": "WinProbabilityFactors",
+        "description": "All four weighted factors contributing to win probability."
+      },
+      "WinProbabilityResponse": {
+        "properties": {
+          "driver": {
+            "type": "string",
+            "title": "Driver",
+            "description": "Driver full name",
+            "examples": [
+              "Lewis Hamilton"
+            ]
+          },
+          "circuit": {
+            "type": "string",
+            "title": "Circuit",
+            "description": "Circuit name",
+            "examples": [
+              "Silverstone Circuit"
+            ]
+          },
+          "win_probability": {
+            "type": "string",
+            "title": "Win Probability",
+            "description": "Estimated win probability",
+            "examples": [
+              "32.5%"
+            ]
+          },
+          "factors": {
+            "$ref": "#/components/schemas/WinProbabilityFactors",
+            "description": "Weighted factor breakdown"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "description": "Methodology disclaimer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "driver",
+          "circuit",
+          "win_probability",
+          "factors",
+          "note"
+        ],
+        "title": "WinProbabilityResponse",
+        "description": "Win probability prediction with weighted factor breakdown."
+      }
+    },
+    "securitySchemes": {
+      "OAuth2PasswordBearer": {
+        "type": "oauth2",
+        "flows": {
+          "password": {
+            "scopes": {},
+            "tokenUrl": "/api/v1/auth/login"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Root",
+      "description": "Health check and API information."
+    },
+    {
+      "name": "Authentication",
+      "description": "User registration and JWT-based login. Register an account and login to receive a Bearer token for protected endpoints."
+    },
+    {
+      "name": "Drivers",
+      "description": "CRUD operations for F1 drivers. Supports pagination, nationality filter, name search, and sorting by newest/oldest/popularity/recent/wins. POST/PUT require authentication; DELETE requires admin."
+    },
+    {
+      "name": "Circuits",
+      "description": "CRUD operations for F1 circuits. List includes total races per circuit. Detail view shows the 5 most recent race winners. POST/PUT require authentication; DELETE requires admin."
+    },
+    {
+      "name": "Constructors",
+      "description": "CRUD operations for F1 constructors (teams). List includes total points and wins. Detail view shows career summary and top 5 drivers. POST/PUT require authentication; DELETE requires admin."
+    },
+    {
+      "name": "Analytics",
+      "description": "Core F1 data analysis: career stats, season progression curves, head-to-head driver comparisons, pit stop strategy analysis, and circuit historical records. All computed from raw race data (no pre-aggregated tables)."
+    },
+    {
+      "name": "Advanced Analytics",
+      "description": "Advanced analytical models: win probability prediction (4-factor weighted model), multi-dimensional performance ratings (0-100), teammate head-to-head battle comparisons, and dynamic leaderboards by various metrics."
+    }
+  ]
+}

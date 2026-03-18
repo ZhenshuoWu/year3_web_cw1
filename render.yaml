@@ -9,8 +9,8 @@ services:
     name: f1-insight-api
     runtime: python
     plan: free
-    buildCommand: cd f1-insight-api && pip install -r requirements.txt
-    startCommand: cd f1-insight-api && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: DATABASE_URL
         fromDatabase:
