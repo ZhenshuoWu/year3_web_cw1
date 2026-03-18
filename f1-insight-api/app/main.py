@@ -1,15 +1,20 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.database import engine, Base
-from app.routers import auth, drivers, analytics
 from app.routers import auth, drivers, analytics, advanced_analytics
 from app.routers import circuits, constructors
 
 settings = get_settings()
 
-# Create all tables
-Base.metadata.create_all(bind=engine)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create all tables on startup (not at import time)
+    Base.metadata.create_all(bind=engine)
+    yield
+
 
 tags_metadata = [
     {
@@ -43,6 +48,7 @@ tags_metadata = [
 ]
 
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="""
