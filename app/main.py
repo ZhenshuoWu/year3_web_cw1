@@ -69,7 +69,7 @@ Protected endpoints require a JWT Bearer token. Register via `POST /api/v1/auth/
 
 ### Data Source
 
-[Ergast F1 Dataset](http://ergast.com/mrd/) - 10 tables, 26,000+ race results, 850+ drivers.
+[Ergast F1 Dataset (Kaggle mirror)](https://www.kaggle.com/datasets/jtrotman/formula-1-race-data) - 10 tables, 26,000+ race results, 850+ drivers.
     """,
     docs_url="/docs",
     redoc_url="/redoc",

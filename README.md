@@ -44,11 +44,11 @@ pip install -r requirements.txt
 # Create database
 createdb f1_insight
 
-# Configure environment
-# Create a .env file with the following variables:
-#   DATABASE_URL=postgresql://your_user@localhost:5432/f1_insight
+# Configure environment (required — replace YOUR_USERNAME with your PostgreSQL user)
+cp .env.example .env
+# Then edit .env:
+#   DATABASE_URL=postgresql://YOUR_USERNAME@localhost:5432/f1_insight
 #   SECRET_KEY=your-secret-key
-#   ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Import F1 data
 python -m data.import_csv
@@ -62,9 +62,19 @@ uvicorn app.main:app --reload
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
+### Testing
+
+```bash
+# Run tests (no PostgreSQL needed — uses SQLite in-memory)
+pytest
+
+# Run with coverage report
+pytest --cov=app --cov-report=term-missing
+```
+
 ## API Documentation
 
-- **Interactive docs** (live server): [Swagger UI](/docs) | [ReDoc](/redoc)
+- **Interactive docs** (live server): [Swagger UI](https://f1-insight-api.onrender.com/docs) | [ReDoc](https://f1-insight-api.onrender.com/redoc)
 - **OpenAPI specification**: [`docs/openapi.json`](docs/openapi.json) — machine-readable schema, can be imported into Postman or Swagger Editor
 
 ## API Endpoints
@@ -139,7 +149,7 @@ year3_web_cw1/
 
 ## Data Source
 
-This API uses the [Ergast F1 Dataset](http://ergast.com/mrd/) covering Formula 1 race data from 1950 to 2024. The repository ships 14 CSV files; 10 are imported into the database, while the remaining 4 (`driver_standings`, `constructor_standings`, `constructor_results`, `sprint_results`) are not imported — their data is derived at query time via aggregation. Together with the application `users` table, the database schema consists of 11 tables. Schema is managed directly through SQLAlchemy model definitions — no migration tool is used.
+This API uses the [Ergast F1 Dataset (Kaggle mirror)](https://www.kaggle.com/datasets/jtrotman/formula-1-race-data) covering Formula 1 race data from 1950 to 2024. The repository ships 14 CSV files; 10 are imported into the database, while the remaining 4 (`driver_standings`, `constructor_standings`, `constructor_results`, `sprint_results`) are not imported — their data is derived at query time via aggregation. Together with the application `users` table, the database schema consists of 11 tables. Schema is managed directly through SQLAlchemy model definitions — no migration tool is used.
 
 ## License
 
