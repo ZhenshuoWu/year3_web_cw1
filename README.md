@@ -76,7 +76,7 @@ pytest --cov=app --cov-report=term-missing
 
 - **Interactive docs** (live server): [Swagger UI](https://f1-insight-api.onrender.com/docs) | [ReDoc](https://f1-insight-api.onrender.com/redoc)
 - **OpenAPI specification**: [`docs/openapi.json`](docs/openapi.json) — machine-readable schema, can be imported into Postman or Swagger Editor
-- **API documentation PDF**: [`F1 Insight API Tim.pdf`](F1%20Insight%20API%20Tim.pdf) — submission-friendly exported reference document
+- **API documentation PDF**: [`F1 Insight API.pdf`](F1%20Insight%20API.pdf) — submission-friendly exported reference document
 
 ## API Endpoints
 
