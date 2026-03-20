@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, Time, ForeignKey, Text, Index, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, Date, Time, ForeignKey, Text, Index, DateTime, Boolean, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -24,6 +24,7 @@ class Circuit(Base):
     lng = Column(Float)
     alt = Column(Float)
     url = Column(String(500))
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     races = relationship("Race", back_populates="circuit")
 
@@ -40,6 +41,7 @@ class Driver(Base):
     dob = Column(Date, nullable=True)
     nationality = Column(String(255))
     url = Column(String(500))
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     results = relationship("Result", back_populates="driver")
     qualifying_results = relationship("Qualifying", back_populates="driver")
@@ -55,6 +57,7 @@ class Constructor(Base):
     name = Column(String(255), nullable=False)
     nationality = Column(String(255))
     url = Column(String(500))
+    is_active = Column(Boolean, nullable=False, default=True, server_default="true")
 
     results = relationship("Result", back_populates="constructor")
     qualifying_results = relationship("Qualifying", back_populates="constructor")

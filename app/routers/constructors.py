@@ -49,6 +49,7 @@ def get_constructors(
             wins_col.label("wins"),
         )
         .outerjoin(stats_subq, Constructor.constructor_id == stats_subq.c.constructor_id)
+        .filter(Constructor.is_active == True)
     )
 
     # --- Filters ---
@@ -98,7 +99,8 @@ def get_constructor(constructor_id: int, db: Session = Depends(get_db)):
     and the top 5 highest-scoring drivers who raced for this team.
     """
     constructor = db.query(Constructor).filter(
-        Constructor.constructor_id == constructor_id
+        Constructor.constructor_id == constructor_id,
+        Constructor.is_active == True
     ).first()
     if not constructor:
         raise HTTPException(status_code=404, detail="Constructor not found")
@@ -212,7 +214,8 @@ def update_constructor(
 ):
     """Update a constructor (requires authentication)."""
     constructor = db.query(Constructor).filter(
-        Constructor.constructor_id == constructor_id
+        Constructor.constructor_id == constructor_id,
+        Constructor.is_active == True
     ).first()
     if not constructor:
         raise HTTPException(status_code=404, detail="Constructor not found")
@@ -235,8 +238,6 @@ def update_constructor(
         401: {"description": "Authentication required"},
         403: {"description": "Admin privileges required"},
         404: {"description": "Constructor not found"},
-        409: {"description": "Cannot delete: associated results exist",
-              "content": {"application/json": {"example": {"detail": "Cannot delete constructor: 268 race results are associated with it. Remove associated results first."}}}},
     }
 )
 def delete_constructor(
@@ -244,22 +245,13 @@ def delete_constructor(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin)
 ):
-    """Delete a constructor (requires admin privileges)."""
+    """Soft-delete a constructor (requires admin privileges). Historical data is preserved."""
     constructor = db.query(Constructor).filter(
-        Constructor.constructor_id == constructor_id
+        Constructor.constructor_id == constructor_id,
+        Constructor.is_active == True
     ).first()
     if not constructor:
         raise HTTPException(status_code=404, detail="Constructor not found")
 
-    # Check for associated results
-    result_count = db.query(func.count(Result.result_id)).filter(
-        Result.constructor_id == constructor_id
-    ).scalar()
-    if result_count > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Cannot delete constructor: {result_count} race results are associated with it. Remove associated results first."
-        )
-
-    db.delete(constructor)
+    constructor.is_active = False
     db.commit()

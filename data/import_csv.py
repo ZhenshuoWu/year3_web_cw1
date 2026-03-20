@@ -119,7 +119,7 @@ def main():
     print("=" * 60)
 
     # Step 1: Drop and recreate F1 data tables only (preserves users table)
-    print("\n[1/3] Recreating database tables...")
+    print("\n[1/4] Recreating database tables...")
     f1_table_names = [
         "lap_times", "pit_stops", "qualifying", "results",
         "races", "status", "constructors", "drivers", "circuits", "seasons"
@@ -132,7 +132,7 @@ def main():
     print("  ✓ Tables created")
 
     # Step 2: Import data in order (respecting foreign keys), wrapped in a single transaction
-    print("\n[2/3] Importing CSV data...")
+    print("\n[2/4] Importing CSV data...")
     import_order = [
         "seasons", "circuits", "drivers", "constructors", "status",
         "races", "results", "qualifying", "pit_stops", "lap_times"
@@ -153,8 +153,29 @@ def main():
         print("  All changes have been rolled back.")
         raise SystemExit(1)
 
-    # Step 3: Verify
-    print("\n[3/3] Verifying import...")
+    # Step 3: Sync sequences so new inserts via API don't collide with imported IDs
+    print("\n[3/4] Syncing primary key sequences...")
+    sequence_tables = {
+        "circuits": "circuit_id",
+        "drivers": "driver_id",
+        "constructors": "constructor_id",
+        "status": "status_id",
+        "races": "race_id",
+        "results": "result_id",
+        "qualifying": "qualify_id",
+        "pit_stops": "id",
+        "lap_times": "id",
+    }
+    with engine.begin() as conn:
+        for table, pk_col in sequence_tables.items():
+            conn.execute(text(
+                f"SELECT setval(pg_get_serial_sequence('{table}', '{pk_col}'), "
+                f"(SELECT COALESCE(MAX({pk_col}), 1) FROM {table}))"
+            ))
+            print(f"  ✓ {table}.{pk_col} sequence synced")
+
+    # Step 4: Verify
+    print("\n[4/4] Verifying import...")
     with engine.connect() as conn:
         for table in import_order:
             try:

@@ -80,21 +80,25 @@ class TestUpdateCircuit:
 
 
 class TestDeleteCircuit:
-    def test_delete_success(self, client, admin_headers, db_session):
-        circuit = Circuit(
-            circuit_id=100, circuit_ref="temp", name="Temp Circuit",
-            country="Nowhere",
-        )
-        db_session.add(circuit)
-        db_session.commit()
-
-        resp = client.delete("/api/v1/circuits/100", headers=admin_headers)
+    def test_soft_delete_success(self, client, admin_headers, seed_data):
+        """Soft-deleting a circuit with races should succeed."""
+        resp = client.delete("/api/v1/circuits/1", headers=admin_headers)
         assert resp.status_code == 204
 
-    def test_delete_with_races(self, client, admin_headers, seed_data):
+        # Circuit no longer visible via GET
+        resp = client.get("/api/v1/circuits/1")
+        assert resp.status_code == 404
+
+        # Circuit no longer visible in list
+        resp = client.get("/api/v1/circuits/")
+        circuit_ids = [c["circuit_id"] for c in resp.json()]
+        assert 1 not in circuit_ids
+
+    def test_delete_already_deleted(self, client, admin_headers, seed_data):
+        """Deleting an already soft-deleted circuit returns 404."""
+        client.delete("/api/v1/circuits/1", headers=admin_headers)
         resp = client.delete("/api/v1/circuits/1", headers=admin_headers)
-        assert resp.status_code == 409
-        assert "races are associated" in resp.json()["detail"]
+        assert resp.status_code == 404
 
     def test_delete_non_admin(self, client, auth_headers, seed_data):
         resp = client.delete("/api/v1/circuits/1", headers=auth_headers)

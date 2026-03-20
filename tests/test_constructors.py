@@ -72,21 +72,25 @@ class TestUpdateConstructor:
 
 
 class TestDeleteConstructor:
-    def test_delete_success(self, client, admin_headers, db_session):
-        constructor = Constructor(
-            constructor_id=100, constructor_ref="temp",
-            name="Temp Racing", nationality="Nowhere",
-        )
-        db_session.add(constructor)
-        db_session.commit()
-
-        resp = client.delete("/api/v1/constructors/100", headers=admin_headers)
+    def test_soft_delete_success(self, client, admin_headers, seed_data):
+        """Soft-deleting a constructor with results should succeed."""
+        resp = client.delete("/api/v1/constructors/1", headers=admin_headers)
         assert resp.status_code == 204
 
-    def test_delete_with_results(self, client, admin_headers, seed_data):
+        # Constructor no longer visible via GET
+        resp = client.get("/api/v1/constructors/1")
+        assert resp.status_code == 404
+
+        # Constructor no longer visible in list
+        resp = client.get("/api/v1/constructors/")
+        constructor_ids = [c["constructor_id"] for c in resp.json()]
+        assert 1 not in constructor_ids
+
+    def test_delete_already_deleted(self, client, admin_headers, seed_data):
+        """Deleting an already soft-deleted constructor returns 404."""
+        client.delete("/api/v1/constructors/1", headers=admin_headers)
         resp = client.delete("/api/v1/constructors/1", headers=admin_headers)
-        assert resp.status_code == 409
-        assert "race results are associated" in resp.json()["detail"]
+        assert resp.status_code == 404
 
     def test_delete_non_admin(self, client, auth_headers, seed_data):
         resp = client.delete("/api/v1/constructors/1", headers=auth_headers)

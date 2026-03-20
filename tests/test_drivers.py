@@ -108,23 +108,29 @@ class TestUpdateDriver:
 
 
 class TestDeleteDriver:
-    def test_delete_success(self, client, admin_headers, db_session):
-        # Driver with no results
-        driver = Driver(driver_id=100, driver_ref="lonely", forename="Solo", surname="Driver")
-        db_session.add(driver)
-        db_session.commit()
-
-        resp = client.delete("/api/v1/drivers/100", headers=admin_headers)
+    def test_soft_delete_success(self, client, admin_headers, seed_data):
+        """Soft-deleting a driver with results should succeed."""
+        resp = client.delete("/api/v1/drivers/1", headers=admin_headers)
         assert resp.status_code == 204
+
+        # Driver no longer visible via GET
+        resp = client.get("/api/v1/drivers/1")
+        assert resp.status_code == 404
+
+        # Driver no longer visible in list
+        resp = client.get("/api/v1/drivers/")
+        driver_ids = [d["driver_id"] for d in resp.json()]
+        assert 1 not in driver_ids
 
     def test_delete_not_found(self, client, admin_headers):
         resp = client.delete("/api/v1/drivers/9999", headers=admin_headers)
         assert resp.status_code == 404
 
-    def test_delete_with_associated_results(self, client, admin_headers, seed_data):
+    def test_delete_already_deleted(self, client, admin_headers, seed_data):
+        """Deleting an already soft-deleted driver returns 404."""
+        client.delete("/api/v1/drivers/1", headers=admin_headers)
         resp = client.delete("/api/v1/drivers/1", headers=admin_headers)
-        assert resp.status_code == 409
-        assert "race results are associated" in resp.json()["detail"]
+        assert resp.status_code == 404
 
     def test_delete_non_admin(self, client, auth_headers, seed_data):
         resp = client.delete("/api/v1/drivers/1", headers=auth_headers)

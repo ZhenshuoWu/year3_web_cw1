@@ -42,6 +42,7 @@ def get_circuits(
     query = (
         db.query(Circuit, total_races_col.label("total_races"))
         .outerjoin(race_stats_subq, Circuit.circuit_id == race_stats_subq.c.circuit_id)
+        .filter(Circuit.is_active == True)
     )
 
     # --- Filters ---
@@ -89,7 +90,7 @@ def get_circuit(circuit_id: int, db: Session = Depends(get_db)):
     Returns circuit details plus the 5 most recent races held at this circuit,
     including the winner of each race.
     """
-    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id).first()
+    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id, Circuit.is_active == True).first()
     if not circuit:
         raise HTTPException(status_code=404, detail="Circuit not found")
 
@@ -180,7 +181,7 @@ def update_circuit(
     current_user=Depends(get_current_user)
 ):
     """Update a circuit (requires authentication)."""
-    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id).first()
+    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id, Circuit.is_active == True).first()
     if not circuit:
         raise HTTPException(status_code=404, detail="Circuit not found")
 
@@ -202,8 +203,6 @@ def update_circuit(
         401: {"description": "Authentication required"},
         403: {"description": "Admin privileges required"},
         404: {"description": "Circuit not found"},
-        409: {"description": "Cannot delete: associated races exist",
-              "content": {"application/json": {"example": {"detail": "Cannot delete circuit: 59 races are associated with it. Remove associated races first."}}}},
     }
 )
 def delete_circuit(
@@ -211,20 +210,10 @@ def delete_circuit(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin)
 ):
-    """Delete a circuit (requires admin privileges)."""
-    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id).first()
+    """Soft-delete a circuit (requires admin privileges). Historical data is preserved."""
+    circuit = db.query(Circuit).filter(Circuit.circuit_id == circuit_id, Circuit.is_active == True).first()
     if not circuit:
         raise HTTPException(status_code=404, detail="Circuit not found")
 
-    # Check if circuit has associated races
-    race_count = db.query(func.count(Race.race_id)).filter(
-        Race.circuit_id == circuit_id
-    ).scalar()
-    if race_count > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Cannot delete circuit: {race_count} races are associated with it. Remove associated races first."
-        )
-
-    db.delete(circuit)
+    circuit.is_active = False
     db.commit()

@@ -29,7 +29,7 @@ def get_drivers(
     from sqlalchemy import func, desc
     from app.models import Result, Race
 
-    query = db.query(Driver)
+    query = db.query(Driver).filter(Driver.is_active == True)
 
     if nationality:
         query = query.filter(Driver.nationality == nationality)
@@ -102,7 +102,7 @@ def get_drivers(
 )
 def get_driver(driver_id: int, db: Session = Depends(get_db)):
     """Get a single driver by ID."""
-    driver = db.query(Driver).filter(Driver.driver_id == driver_id).first()
+    driver = db.query(Driver).filter(Driver.driver_id == driver_id, Driver.is_active == True).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
     return driver
@@ -151,7 +151,7 @@ def update_driver(
     current_user=Depends(get_current_user)
 ):
     """Update a driver (requires authentication)."""
-    driver = db.query(Driver).filter(Driver.driver_id == driver_id).first()
+    driver = db.query(Driver).filter(Driver.driver_id == driver_id, Driver.is_active == True).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
 
@@ -172,8 +172,6 @@ def update_driver(
         401: {"description": "Authentication required"},
         403: {"description": "Admin privileges required"},
         404: {"description": "Driver not found"},
-        409: {"description": "Cannot delete: associated race results exist",
-              "content": {"application/json": {"example": {"detail": "Cannot delete driver: 150 race results are associated. Remove associated results first."}}}},
     }
 )
 def delete_driver(
@@ -181,19 +179,10 @@ def delete_driver(
     db: Session = Depends(get_db),
     current_user=Depends(require_admin)
 ):
-    """Delete a driver (requires admin privileges)."""
-    driver = db.query(Driver).filter(Driver.driver_id == driver_id).first()
+    """Soft-delete a driver (requires admin privileges). Historical data is preserved."""
+    driver = db.query(Driver).filter(Driver.driver_id == driver_id, Driver.is_active == True).first()
     if not driver:
         raise HTTPException(status_code=404, detail="Driver not found")
 
-    result_count = db.query(func.count(Result.result_id)).filter(
-        Result.driver_id == driver_id
-    ).scalar()
-    if result_count > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Cannot delete driver: {result_count} race results are associated. Remove associated results first."
-        )
-
-    db.delete(driver)
+    driver.is_active = False
     db.commit()
